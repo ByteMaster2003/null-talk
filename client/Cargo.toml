@@ -1,0 +1,17 @@
+[package]
+name = "null-talk-client"
+version = "1.0.0"
+edition = "2024"
+authors = ["ByteMaster2003 <viveksahani39266@gmail.com>"]
+description = "A null-safe client communication library for Rust."
+
+
+[dependencies]
+common = { path = "../common" }
+tokio = { workspace = true, features = ["full"] }
+hex.workspace = true
+bincode.workspace = true
+ssh-key.workspace = true
+config.workspace = true
+serde = { workspace = true, features = ["derive"] }
+rsa = { workspace = true, features = ["serde", "sha2"] }

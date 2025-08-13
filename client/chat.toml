@@ -1,0 +1,13 @@
+# [dm]			direct_message
+# [group]		group_chat
+# (required)
+connection_type = "dm"
+
+# it can be username or group name
+# (required)
+name = "vivek"
+id = "45348de74a37d4604708837b15787e8ef39a69574577839e474b2678acb30ac5"
+
+# encryption algorithm
+# Supported algorithms: AES256, ChaCha20 --> default(AES256)
+algo = "AES256"

@@ -1,0 +1,17 @@
+[package]
+name = "common"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aes-gcm = "0.10.3"
+base64 = "0.22.1"
+bincode.workspace = true
+chacha20poly1305 = "0.10.1"
+dirs = "6.0.0"
+hex.workspace = true
+pem = "3.0.5"
+rsa = { workspace = true, features = ["serde", "sha2"] }
+serde = { workspace = true, features = ["derive"] }
+ssh-key.workspace = true
+tokio.workspace = true

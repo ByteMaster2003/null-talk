@@ -1,0 +1,16 @@
+[package]
+name = "null-talk-server"
+version = "1.0.0"
+edition = "2024"
+authors = ["ByteMaster2003 <viveksahani39266@gmail.com>"]
+description = "A null-safe server communication library for Rust."
+
+
+[dependencies]
+bincode.workspace = true
+common = { path = "../common" }
+config.workspace = true
+hex.workspace = true
+rsa.workspace = true
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["full"] }

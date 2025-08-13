@@ -1,0 +1,13 @@
+[workspace]
+resolver = "3"
+members = ["client", "common", "server"]
+
+
+[workspace.dependencies]
+config = "0.15.13"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1.47.1", features = ["full"] }
+rsa = { version = "0.9.8", features = ["serde", "sha2"] }
+ssh-key = "0.6.7"
+hex = "0.4.3"
+bincode = "2.0.1"
