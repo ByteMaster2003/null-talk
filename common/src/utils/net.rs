@@ -1,24 +1,41 @@
-use crate::net::{HandshakePacket, StreamReader, StreamWriter};
+use crate::net::{StreamReader, StreamWriter};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-pub async fn read_handshake_packet(
-    rd: StreamReader,
-) -> Result<HandshakePacket, Box<dyn std::error::Error + Send + Sync>> {
+pub async fn read_packet<P>(rd: StreamReader) -> Result<P, Box<dyn std::error::Error + Send + Sync>>
+where
+    P: bincode::Decode<()>,
+{
     let mut reader = rd.lock().await;
 
     let len = reader.read_u32().await?;
     let mut buf = vec![0u8; len as usize];
     reader.read_exact(&mut buf).await?;
-    let (packet, _): (HandshakePacket, usize) =
-        bincode::decode_from_slice(&buf, bincode::config::standard())?;
+    let (packet, _): (P, usize) = bincode::decode_from_slice(&buf, bincode::config::standard())?;
 
     Ok(packet)
 }
 
-pub async fn write_handshake_packet(
+pub async fn read_packet_with_reader<P>(
+    reader: &mut tokio::sync::MutexGuard<'_, tokio::net::tcp::OwnedReadHalf>,
+) -> Result<P, Box<dyn std::error::Error + Send + Sync>>
+where
+    P: bincode::Decode<()>,
+{
+    let len = reader.read_u32().await?;
+    let mut buf = vec![0u8; len as usize];
+    reader.read_exact(&mut buf).await?;
+    let (packet, _): (P, usize) = bincode::decode_from_slice(&buf, bincode::config::standard())?;
+
+    Ok(packet)
+}
+
+pub async fn write_packet<P>(
     wt: StreamWriter,
-    packet: HandshakePacket,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    packet: P,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+where
+    P: bincode::Encode,
+{
     let mut writer = wt.lock().await;
 
     let encoded = bincode::encode_to_vec(packet, bincode::config::standard())?;

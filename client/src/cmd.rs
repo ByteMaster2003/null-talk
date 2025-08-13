@@ -55,9 +55,9 @@ pub async fn process_command(cmd: &str, rd: StreamReader, wt: StreamWriter) {
                     s_list.insert(session.id.clone(), session.clone());
 
                     let mut session_lock = ACTIVE_SESSION.lock().unwrap();
-                    *session_lock = Some(session);
+                    *session_lock = Some(session.clone());
 
-                    println!();
+                    println!("New group created: {:?}", session);
                 }
                 None => {
                     println!("Failed to create new group");

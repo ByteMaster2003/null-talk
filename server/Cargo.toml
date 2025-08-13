@@ -14,3 +14,4 @@ hex.workspace = true
 rsa.workspace = true
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }
+uuid = { version = "1.18.0", features = ["v4"] }

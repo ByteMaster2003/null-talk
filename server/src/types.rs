@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
     net::tcp::{OwnedReadHalf, OwnedWriteHalf},
-    sync::{Mutex, mpsc::UnboundedSender},
+    sync::Mutex,
 };
 
 #[derive(Debug, Clone)]
@@ -9,7 +9,7 @@ pub struct Client {
     pub username: String,
     pub user_id: String,
     pub session_key: String,
-    pub writer: UnboundedSender<String>,
+    pub writer: StreamWriter,
 }
 
 #[derive(Debug, Clone)]
@@ -21,7 +21,7 @@ pub struct DmChat {
 
 #[derive(Debug, Clone)]
 pub struct GroupMember {
-    pub username: String,
+    pub username: Option<String>,
     pub user_id: String,
     pub writer: Option<StreamWriter>,
 }
@@ -31,10 +31,10 @@ pub struct GroupChat {
     pub group_name: String,
     pub group_id: String,
 
-    pub participants: Vec<HashMap<String, GroupMember>>,
-    pub join_requests: Vec<HashMap<String, GroupMember>>,
+    pub participants: HashMap<String, GroupMember>,
+    pub join_requests: HashMap<String, GroupMember>,
 
-    pub session_key: String,
+    pub session_key: Vec<u8>,
     pub admin: GroupMember,
 }
 

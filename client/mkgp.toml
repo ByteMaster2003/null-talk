@@ -1,2 +1,5 @@
-group_name = "Cypher"
-members = ["bc7e780e2b26dec01fa791a617ef51bb93755f404a8ae150279aeb9d55d5ccab"]
+name = "Cypher"
+members = [
+	"8e9c9db840b1b66e77ba817b5bf341fbadd71c9388e4768410d590983742881a",
+	"bc7e780e2b26dec01fa791a617ef51bb93755f404a8ae150279aeb9d55d5ccab",
+]

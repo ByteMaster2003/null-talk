@@ -16,13 +16,7 @@ pub enum ChatMessageKind {
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct Packet {
     pub kind: ChatMessageKind,
-    pub data: Vec<u8>,
-}
-
-pub struct ServerResponse {
-    pub success: bool,
-    pub message: String,
-    pub error: String,
+    pub payload: Vec<u8>,
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]

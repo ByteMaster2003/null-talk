@@ -1,7 +1,4 @@
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    sync::mpsc,
-};
+use tokio::{io::AsyncWriteExt, sync::mpsc};
 
 use crate::{
     data::CLIENTS,
@@ -9,7 +6,14 @@ use crate::{
     types::{Client, StreamReader, StreamWriter},
     utils::perform_handshake,
 };
-use common::utils::enc::public_key_to_user_id;
+use common::{
+    net::{ChatMessageKind, Packet},
+    types::ServerResponse,
+    utils::{
+        enc::public_key_to_user_id,
+        net::{read_packet, write_packet},
+    },
+};
 
 pub async fn handle_client(
     rd: StreamReader,
@@ -20,14 +24,17 @@ pub async fn handle_client(
         Err(e) => return Err(format!("Handshake failed: {}", e).into()),
     };
 
-    let (tx, mut rx) = mpsc::unbounded_channel();
+    let (_tx, mut rx): (
+        mpsc::UnboundedSender<String>,
+        mpsc::UnboundedReceiver<String>,
+    ) = mpsc::unbounded_channel();
 
     let client_id = public_key_to_user_id(&public_key);
     let client = Client {
         username: name.clone().to_string(),
         user_id: client_id.clone(),
         session_key: hex::encode(&session_key),
-        writer: tx,
+        writer: wt.clone(),
     };
 
     // Add new client to the server◊
@@ -64,34 +71,41 @@ pub async fn handle_client(
     let w_clone = wt.clone();
     let client_id_clone = client_id.clone();
     let reader_task = tokio::spawn(async move {
-        let mut buf = [0u8; 1024];
         loop {
-            // lock only for the read call
-            let mut guard = r_clone.lock().await;
-            let n = match guard.read(&mut buf).await {
-                Ok(0) => {
-                    // connection closed
-                    break;
-                }
-                Ok(n) => n,
+            let packet: Packet = match read_packet(r_clone.clone()).await {
+                Ok(packet) => packet,
                 Err(e) => {
-                    eprintln!("read error: {}", e);
+                    eprintln!("Failed to read packet: {}", e);
                     break;
                 }
             };
-            drop(guard); // release read lock immediately
 
-            let msg_prefix = String::from_utf8_lossy(&buf[..10]).to_string();
-            if msg_prefix.starts_with("/") {
-                process_command(buf, client_id_clone.clone(), w_clone.clone()).await;
-            } else {
-                // broadcast to others (example, not optimized)
-                let msg = String::from_utf8_lossy(&buf[..n]).to_string();
-                let clients_lock = CLIENTS.lock().unwrap();
-                for (other_id, c) in clients_lock.iter() {
-                    if *other_id != client_id_clone {
-                        let _ = c.writer.send(msg.clone());
+            match packet.kind {
+                ChatMessageKind::Command(_) => {
+                    match process_command(packet, client_id_clone.clone()).await {
+                        Ok(res) => {
+                            let _ = write_packet::<ServerResponse>(w_clone.clone(), res).await;
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to process command: {}", e);
+                        }
                     }
+                }
+                ChatMessageKind::DirectMessage(receiver_id) => {
+                    println!(
+                        "Received DM from: {} to {}\nmsg: {}\n",
+                        &client_id_clone[..8],
+                        &receiver_id[..8],
+                        String::from_utf8_lossy(&packet.payload)
+                    );
+                }
+                ChatMessageKind::GroupMessage(group_id) => {
+                    println!(
+                        "Received GM from: {} to {}\nmsg: {}\n",
+                        &client_id_clone[..8],
+                        &group_id[..8],
+                        String::from_utf8_lossy(&packet.payload)
+                    );
                 }
             }
         }

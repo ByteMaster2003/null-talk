@@ -1,8 +1,11 @@
 use crate::{cmd, data::ACTIVE_SESSION, utils::perform_handshake};
-use common::net::{StreamReader, StreamWriter};
+use common::{
+    net::{ChatMessageKind, Packet, StreamReader, StreamWriter},
+    utils::net::read_packet,
+};
 
 use std::io::{self, Write};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 
 pub async fn handle_client(
     rd: StreamReader,
@@ -22,24 +25,26 @@ pub async fn handle_client(
     // 1. Task to receive incoming messages
     let r_clone = rd.clone();
     tokio::spawn(async move {
-        let mut buf = [0u8; 1024];
-
         loop {
-            let mut guard = r_clone.lock().await;
-            let n = match guard.read(&mut buf).await {
-                Ok(0) => {
-                    break; // connection closed
-                }
-                Ok(n) => n,
+            let packet = match read_packet::<Packet>(r_clone.clone()).await {
+                Ok(packet) => packet,
                 Err(e) => {
-                    eprintln!("read error: {}", e);
+                    eprintln!("Failed to read packet: {}", e);
                     break;
                 }
             };
-            drop(guard); // release read lock immediately
-            let msg = String::from_utf8_lossy(&buf[..n]).to_string();
 
-            println!("\n📥 {}", msg); // Show incoming msg
+            match packet.kind {
+                ChatMessageKind::DirectMessage(_) => {
+                    println!("Received a dm {}", String::from_utf8_lossy(&packet.payload));
+                }
+                ChatMessageKind::GroupMessage(_) => {
+                    println!("Received a gm {}", String::from_utf8_lossy(&packet.payload));
+                }
+                _ => {
+                    eprintln!("Unknown packet kind");
+                }
+            }
             print!("{}", get_prompt());
         }
     });

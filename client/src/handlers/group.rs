@@ -1,23 +1,16 @@
 use std::path::PathBuf;
 
 use config::{Config, File};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::{
     data::SESSIONS,
     types::{ChatMode, Session},
 };
 use common::{
-    net::{StreamReader, StreamWriter},
-    types::{EncryptionConfig, SymmetricAlgo},
-    utils::file::resolve_path,
+    net::{Packet, StreamReader, StreamWriter},
+    types::{EncryptionConfig, NewGroupPayload, NewGroupResponse, ServerResponse, SymmetricAlgo},
+    utils::{file::resolve_path, net as netutils},
 };
-
-#[derive(serde::Deserialize)]
-pub struct GroupInfo {
-    pub name: String,
-    pub members: Vec<String>,
-}
 
 pub async fn create_new_group(
     file_path: &str,
@@ -32,7 +25,7 @@ pub async fn create_new_group(
         }
     };
 
-    let group_info = match parse_group_file(&path) {
+    let payload = match parse_group_file(&path) {
         Some(info) => info,
         None => {
             eprintln!("Failed to parse group file: {:?}", path);
@@ -40,57 +33,63 @@ pub async fn create_new_group(
         }
     };
 
-    {
-        let mut writer = wt.lock().await;
-        let mut packet: Vec<u8> = Vec::new();
-        let command = "/mkgp".to_string();
+    let packet = Packet {
+        kind: common::net::ChatMessageKind::Command("/mkgp".to_string()),
+        payload: bincode::encode_to_vec(&payload, bincode::config::standard())
+            .unwrap_or("Failed to encode payload".into()),
+    };
 
-        // Add command name
-        packet.push(command.len() as u8);
-        packet.extend(command.into_bytes());
-
-        // Add group name
-        packet.push(group_info.name.len() as u8);
-        packet.extend(group_info.name.clone().into_bytes());
-
-        // Add member count
-        packet.push(group_info.members.len() as u8);
-        for member in group_info.members {
-            packet.push(member.len() as u8);
-            packet.extend(member.into_bytes());
-        }
-        packet.push(0); // Null terminator for the member list
-        writer.write_all(&packet).await.unwrap();
-        writer.flush().await.unwrap();
+    println!("debug1");
+    let mut reader = rd.lock().await;
+    println!("debug2");
+    if let Err(_) = netutils::write_packet(wt.clone(), packet).await {
+        eprintln!("Failed to send packet");
+        return None;
     }
 
-    let mut buf = vec![0u8; 2048];
-    let n = {
-        let mut reader = rd.lock().await;
-        match reader.read(&mut buf).await {
-            Ok(n) => n,
-            Err(e) => {
-                eprintln!("Failed to create group: {}", e);
-                return None;
-            }
+    let response: ServerResponse = match netutils::read_packet_with_reader(&mut reader).await {
+        Ok(resp) => resp,
+        Err(e) => {
+            eprintln!("Failed to read response: {}", e);
+            return None;
+        }
+    };
+    drop(reader);
+
+    if !response.success {
+        let msg = response.error.clone();
+        eprintln!(
+            "Failed to create group: {}",
+            msg.unwrap_or_else(|| "".to_string())
+        );
+        return None;
+    }
+    let group_info = match response.payload {
+        Some(payload) => {
+            let (group_info, _): (NewGroupResponse, usize) =
+                match bincode::decode_from_slice(&payload, bincode::config::standard()) {
+                    Ok(info) => info,
+                    Err(_) => {
+                        eprintln!("Failed to decode group info");
+                        return None;
+                    }
+                };
+
+            group_info
+        }
+        None => {
+            eprintln!("Failed to create group");
+            return None;
         }
     };
 
-    if n < 64 {
-        eprintln!("Failed to create group");
-        return None;
-    }
-    let session_key = buf[0..32].to_vec();
-    let group_id_len = buf[32] as usize;
-    let group_id = hex::encode(&buf[33..33 + group_id_len]);
-
     Some(Session {
-        name: group_info.name.clone(),
-        id: group_id,
-        mode: ChatMode::Group(group_info.name.clone()),
+        name: payload.name.clone(),
+        id: group_info.group_id,
+        mode: ChatMode::Group(payload.name.clone()),
         encryption: EncryptionConfig {
             algo: SymmetricAlgo::AES256,
-            encryption_key: Some(session_key),
+            encryption_key: Some(group_info.session_key),
         },
     })
 }
@@ -101,11 +100,11 @@ pub fn add_group_member(_: &str) -> Option<Session> {
     Some(session.clone())
 }
 
-pub fn parse_group_file(path: &PathBuf) -> Option<GroupInfo> {
+pub fn parse_group_file(path: &PathBuf) -> Option<NewGroupPayload> {
     let file = File::with_name(path.to_str().unwrap());
     let cfg = Config::builder().add_source(file).build().unwrap();
 
-    let group_info = match cfg.try_deserialize::<GroupInfo>() {
+    let group_info = match cfg.try_deserialize::<NewGroupPayload>() {
         Ok(group) => group,
         Err(_) => return None,
     };

@@ -42,12 +42,12 @@ pub async fn perform_handshake(
         signature: None,
         session_key: None,
     };
-    netutils::write_handshake_packet(wt.clone(), packet).await?;
+    netutils::write_packet(wt.clone(), packet).await?;
 
     // Step: 1
     // Receive handshake packet from server with nonce
     // Sign the nonce with private_key
-    let packet = netutils::read_handshake_packet(rd.clone()).await?;
+    let packet: HandshakePacket = netutils::read_packet(rd.clone()).await?;
     assert!(packet.step == 1);
     let nonce = match packet.nonce {
         Some(nonce) => nonce.clone(),
@@ -65,11 +65,11 @@ pub async fn perform_handshake(
         signature: Some(signature),
         session_key: None,
     };
-    netutils::write_handshake_packet(wt.clone(), packet).await?;
+    netutils::write_packet(wt.clone(), packet).await?;
 
     // Step: 3
     // Receive handshake packet with session_key
-    let packet = netutils::read_handshake_packet(rd.clone()).await?;
+    let packet: HandshakePacket = netutils::read_packet(rd.clone()).await?;
     assert!(packet.step == 3);
     let session_key = packet
         .session_key
