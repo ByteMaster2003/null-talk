@@ -18,13 +18,13 @@ async fn main() {
     println!("🚀 Server listening on {}", &server_address);
 
     loop {
-        let (stream, socket_addr) = listener.accept().await.unwrap();
-        println!("🔗 New connection request: {}\n", socket_addr.ip());
+        let (stream, _) = listener.accept().await.unwrap();
 
         // let stream = Arc::new(stream);
         let (reader, writer) = stream.into_split();
         let reader = Arc::new(Mutex::new(reader));
         let writer = Arc::new(Mutex::new(writer));
+
         tokio::spawn(async move { handle_client(reader, writer).await });
     }
 }

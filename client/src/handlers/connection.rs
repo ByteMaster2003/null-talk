@@ -5,16 +5,17 @@ use std::{
 
 use config::{Config, File};
 
-use crate::{
-    data::SESSIONS,
-    types::{ChatMode, Session},
-};
+use crate::{data::SESSIONS, types::Session};
 use common::{
-    types::{EncryptionConfig, SymmetricAlgo},
-    utils::{enc::hash_string, file::resolve_path},
+    net::{ChatMessageKind, Packet, StreamReader, StreamWriter},
+    types::{
+        ChatMode, EncryptionConfig, NewSessionPayload, NewSessionResponse, ServerResponse,
+        SymmetricAlgo,
+    },
+    utils::{enc::hash_string, file::resolve_path, net as netutils},
 };
 
-pub fn new_connection(input: &str) -> Option<Session> {
+pub async fn new_connection(input: &str, rd: StreamReader, wt: StreamWriter) -> Option<Session> {
     let path = match resolve_path(input) {
         Ok(path) => path,
         Err(_) => {
@@ -23,16 +24,72 @@ pub fn new_connection(input: &str) -> Option<Session> {
         }
     };
 
-    match parse_connection_file(&path) {
-        Some(session) => Some(session),
+    let mut session = match parse_connection_file(&path) {
+        Some(session) => session,
         None => {
             eprintln!("Failed to parse connection file: {:?}", path);
-            None
+            return None;
         }
+    };
+
+    let new_session_payload = NewSessionPayload {
+        id: session.id.clone(),
+        mode: session.mode.clone(),
+        algo: session.encryption.algo.clone(),
+    };
+
+    let packet = Packet {
+        kind: ChatMessageKind::Command("/new".to_string()),
+        payload: bincode::encode_to_vec(&new_session_payload, bincode::config::standard())
+            .unwrap_or("Failed to encode payload".into()),
+    };
+
+    if let Err(_) = netutils::write_packet(wt.clone(), packet).await {
+        eprintln!("Failed to send packet");
+        return None;
     }
+
+    let response: ServerResponse = match netutils::read_packet(rd.clone()).await {
+        Ok(packet) => packet,
+        Err(err) => {
+            eprintln!("Failed to read response packet: {}", err);
+            return None;
+        }
+    };
+
+    if !response.success {
+        eprintln!(
+            "Error: {}",
+            response
+                .error
+                .unwrap_or_else(|| "Failed to create new session".into())
+        );
+        return None;
+    }
+
+    let payload = match response.payload {
+        Some(ref payload) => payload,
+        None => {
+            eprintln!("No payload found in response");
+            return None;
+        }
+    };
+    let (new_session, _): (NewSessionResponse, usize) =
+        match bincode::decode_from_slice(&payload, bincode::config::standard()) {
+            Ok(chat) => chat,
+            Err(err) => {
+                eprintln!("Error: {}", err);
+                return None;
+            }
+        };
+
+    session.id = new_session.id;
+    session.encryption.encryption_key = Some(new_session.session_key);
+
+    Some(session)
 }
 
-pub fn get_connection(key: &str) -> Option<Session> {
+pub fn get_session(key: &str) -> Option<Session> {
     let sessions = SESSIONS.lock().unwrap();
     sessions.get(key).cloned()
 }
@@ -147,10 +204,7 @@ fn get_enc_config(deserialized: &HashMap<String, String>) -> Option<EncryptionCo
                 return None;
             }
         },
-        None => {
-            eprintln!("Missing algo");
-            return None;
-        }
+        None => SymmetricAlgo::AES256,
     };
 
     Some(EncryptionConfig {

@@ -1,0 +1,13 @@
+# [dm]			direct_message
+# [group]		group_chat
+# (required)
+connection_type = "group"
+
+# it can be username or group name
+# (required)
+name = "Cypher"
+id = "53df4ec65397d404aa54ef7afda4005356a17388e49fb9e1859417af1ab45905"
+
+# encryption algorithm
+# Supported algorithms: AES256, ChaCha20 --> default(AES256)
+algo = "AES256"

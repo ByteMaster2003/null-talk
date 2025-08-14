@@ -1,9 +1,10 @@
+use bincode::{Decode, Encode};
 use serde::Deserialize;
 
 /**
  * Supported symmetric encryption algorithms.
  */
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq, Encode, Decode)]
 #[serde(rename_all = "PascalCase")]
 pub enum SymmetricAlgo {
     AES256,

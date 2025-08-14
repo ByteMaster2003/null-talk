@@ -6,14 +6,14 @@ use tokio::{
     sync::Mutex,
 };
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(Encode, Decode, PartialEq, Debug, Clone)]
 pub enum ChatMessageKind {
     Command(String),
     DirectMessage(String),
     GroupMessage(String),
 }
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(Encode, Decode, PartialEq, Debug, Clone)]
 pub struct Packet {
     pub kind: ChatMessageKind,
     pub payload: Vec<u8>,

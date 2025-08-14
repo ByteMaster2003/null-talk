@@ -1,8 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
-use tokio::{
-    net::tcp::{OwnedReadHalf, OwnedWriteHalf},
-    sync::Mutex,
-};
+use common::net::StreamWriter;
 
 #[derive(Debug, Clone)]
 pub struct Client {
@@ -14,16 +10,9 @@ pub struct Client {
 
 #[derive(Debug, Clone)]
 pub struct DmChat {
-    pub initiator: Client,
-    pub other: Client,
-    pub session_key: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct GroupMember {
-    pub username: Option<String>,
-    pub user_id: String,
-    pub writer: Option<StreamWriter>,
+    pub dm_id: String,
+    pub members: (String, String),
+    pub session_key: Vec<u8>,
 }
 
 #[derive(Debug, Clone)]
@@ -31,12 +20,8 @@ pub struct GroupChat {
     pub group_name: String,
     pub group_id: String,
 
-    pub participants: HashMap<String, GroupMember>,
-    pub join_requests: HashMap<String, GroupMember>,
+    pub members: Vec<String>,
 
     pub session_key: Vec<u8>,
-    pub admin: GroupMember,
+    pub admin: String,
 }
-
-pub type StreamReader = Arc<Mutex<OwnedReadHalf>>;
-pub type StreamWriter = Arc<Mutex<OwnedWriteHalf>>;

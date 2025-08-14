@@ -1,0 +1,13 @@
+# [dm]			direct_message
+# [group]		group_chat
+# (required)
+connection_type = "dm"
+
+# it can be username or group name
+# (required)
+name = "w3dev"
+id = "8e9c9db840b1b66e77ba817b5bf341fbadd71c9388e4768410d590983742881a"
+
+# encryption algorithm
+# Supported algorithms: AES256, ChaCha20 --> default(AES256)
+algo = "AES256"

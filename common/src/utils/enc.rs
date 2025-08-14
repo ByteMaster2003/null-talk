@@ -73,6 +73,50 @@ pub fn encrypt_message(
     }
 }
 
+pub fn decrypt_message(
+    message: &[u8],
+    enc_config: EncryptionConfig,
+) -> Result<String, Box<dyn Error>> {
+    match enc_config.algo {
+        SymmetricAlgo::AES256 => {
+            let encryption_key = &enc_config.encryption_key.expect("❗️Missing encryption key");
+            let key = Key::<Aes256Gcm>::from_slice(&encryption_key); // Normally random
+            let cipher = Aes256Gcm::new(key);
+
+            // Get 12 bytes nonce
+            let nonce_bytes = message[0..12].to_vec();
+            let nonce = Nonce::from_slice(&nonce_bytes);
+
+            // Decrypt
+            let ciphertext = match cipher.decrypt(nonce, &message[12..]) {
+                Ok(ct) => ct,
+                Err(_) => return Err("❗️Decryption failed".into()),
+            };
+            let msg = String::from_utf8_lossy(&ciphertext);
+
+            Ok(msg.into_owned())
+        }
+        SymmetricAlgo::ChaCha20 => {
+            let encryption_key = enc_config.encryption_key.expect("❗️Missing encryption key");
+            let key = ChaChaKey::from_slice(&encryption_key);
+            let cipher = ChaCha20Poly1305::new(key);
+
+            // Get 12 bytes nonce
+            let nonce_bytes = message[0..12].to_vec();
+            let nonce = ChaChaNonce::from_slice(&nonce_bytes);
+
+            // Encrypt
+            let ciphertext = match cipher.encrypt(nonce, &message[12..]) {
+                Ok(ct) => ct,
+                Err(_) => return Err("❗️Decryption failed".into()),
+            };
+            let msg = String::from_utf8_lossy(&ciphertext);
+
+            Ok(msg.into_owned())
+        }
+    }
+}
+
 /**
  * Attempts to parse an RSA private key from various formats.
  *
@@ -154,7 +198,7 @@ pub fn public_key_to_user_id(pub_key: &RsaPublicKey) -> String {
     let der_bytes = der_bytes.as_bytes();
 
     // Hash the DER bytes
-    let mut hasher =<Sha256 as Digest>::new();
+    let mut hasher = <Sha256 as Digest>::new();
     hasher.update(der_bytes);
     let hash = hasher.finalize();
 

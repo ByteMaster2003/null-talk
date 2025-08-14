@@ -1,18 +1,9 @@
-use common::types::EncryptionConfig;
+use common::types::{ChatMode, EncryptionConfig};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
-
-/**
- * Represents the current chat mode (none, direct message, or group).
- */
-#[derive(Clone, Debug)]
-pub enum ChatMode {
-    Dm(String),
-    Group(String),
-}
 
 /**
  * Represents a user session, including encryption and chat mode.

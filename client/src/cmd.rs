@@ -1,7 +1,7 @@
 use crate::{
     data::{ACTIVE_SESSION, CLIENT_CONFIG, SESSIONS},
     handlers::{
-        add_group_member, create_new_group, get_connection, list_connections, new_connection,
+        add_group_member, create_new_group, get_session, list_connections, new_connection,
         rm_connection,
     },
 };
@@ -28,7 +28,7 @@ pub async fn process_command(cmd: &str, rd: StreamReader, wt: StreamWriter) {
                 println!("Usage: /new file_path");
                 return;
             }
-            match new_connection(parts[1]) {
+            match new_connection(parts[1], rd.clone(), wt.clone()).await {
                 Some(session) => {
                     let mut s_list = SESSIONS.lock().unwrap();
                     s_list.insert(session.id.clone(), session.clone());
@@ -38,10 +38,7 @@ pub async fn process_command(cmd: &str, rd: StreamReader, wt: StreamWriter) {
 
                     println!();
                 }
-                None => {
-                    println!("Failed to create new session");
-                    return;
-                }
+                None => return,
             };
         }
         "/mkgp" => {
@@ -56,8 +53,6 @@ pub async fn process_command(cmd: &str, rd: StreamReader, wt: StreamWriter) {
 
                     let mut session_lock = ACTIVE_SESSION.lock().unwrap();
                     *session_lock = Some(session.clone());
-
-                    println!("New group created: {:?}", session);
                 }
                 None => {
                     println!("Failed to create new group");
@@ -70,15 +65,7 @@ pub async fn process_command(cmd: &str, rd: StreamReader, wt: StreamWriter) {
                 println!("Usage: /addgpm <user_id>");
                 return;
             }
-            match add_group_member(parts[1]) {
-                Some(_) => {
-                    println!();
-                }
-                None => {
-                    println!("Failed to add group member");
-                    return;
-                }
-            };
+            add_group_member(parts[1], rd.clone(), wt.clone()).await;
         }
         "/my-id" => {
             let config = CLIENT_CONFIG.lock().unwrap();
@@ -97,7 +84,7 @@ pub async fn process_command(cmd: &str, rd: StreamReader, wt: StreamWriter) {
                 println!("Usage: /chat <chat_id>");
                 return;
             }
-            match get_connection(parts[1]) {
+            match get_session(parts[1]) {
                 Some(session) => {
                     let mut session_lock = ACTIVE_SESSION.lock().unwrap();
                     *session_lock = Some(session);

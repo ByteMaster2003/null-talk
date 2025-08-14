@@ -2,13 +2,13 @@ use std::path::PathBuf;
 
 use config::{Config, File};
 
-use crate::{
-    data::SESSIONS,
-    types::{ChatMode, Session},
-};
+use crate::types::Session;
 use common::{
-    net::{Packet, StreamReader, StreamWriter},
-    types::{EncryptionConfig, NewGroupPayload, NewGroupResponse, ServerResponse, SymmetricAlgo},
+    net::{ChatMessageKind, Packet, StreamReader, StreamWriter},
+    types::{
+        ChatMode, EncryptionConfig, NewGroupPayload, NewGroupResponse, ServerResponse,
+        SymmetricAlgo,
+    },
     utils::{file::resolve_path, net as netutils},
 };
 
@@ -34,27 +34,23 @@ pub async fn create_new_group(
     };
 
     let packet = Packet {
-        kind: common::net::ChatMessageKind::Command("/mkgp".to_string()),
+        kind: ChatMessageKind::Command("/mkgp".to_string()),
         payload: bincode::encode_to_vec(&payload, bincode::config::standard())
             .unwrap_or("Failed to encode payload".into()),
     };
 
-    println!("debug1");
-    let mut reader = rd.lock().await;
-    println!("debug2");
     if let Err(_) = netutils::write_packet(wt.clone(), packet).await {
         eprintln!("Failed to send packet");
         return None;
     }
 
-    let response: ServerResponse = match netutils::read_packet_with_reader(&mut reader).await {
+    let response: ServerResponse = match netutils::read_packet(rd.clone()).await {
         Ok(resp) => resp,
         Err(e) => {
             eprintln!("Failed to read response: {}", e);
             return None;
         }
     };
-    drop(reader);
 
     if !response.success {
         let msg = response.error.clone();
@@ -94,10 +90,46 @@ pub async fn create_new_group(
     })
 }
 
-pub fn add_group_member(_: &str) -> Option<Session> {
-    let mut s_list = SESSIONS.lock().unwrap();
-    let session = s_list.get_mut("ksession")?;
-    Some(session.clone())
+pub async fn add_group_member(member_id: &str, rd: StreamReader, wt: StreamWriter) {
+    let packet = Packet {
+        kind: common::net::ChatMessageKind::Command("/addgpm".to_string()),
+        payload: bincode::encode_to_vec(member_id, bincode::config::standard())
+            .unwrap_or("Failed to encode payload".into()),
+    };
+
+    if let Err(_) = netutils::write_packet(wt.clone(), packet).await {
+        eprintln!("Failed to send packet");
+        return;
+    }
+
+    let response: ServerResponse = match netutils::read_packet(rd.clone()).await {
+        Ok(resp) => resp,
+        Err(e) => {
+            eprintln!("Failed to read response: {}", e);
+            return;
+        }
+    };
+
+    if !response.success {
+        let msg = response.error.clone();
+        eprintln!("{}", msg.unwrap_or_else(|| "".to_string()));
+        return;
+    } else {
+        if let Some(payload) = response.payload {
+            let (msg, _): (String, usize) =
+                match bincode::decode_from_slice(&payload, bincode::config::standard()) {
+                    Ok(data) => data,
+                    Err(err) => {
+                        eprintln!("Failed to decode payload: {}", err);
+                        return;
+                    }
+                };
+
+            println!("{}", msg);
+            return;
+        }
+        println!("Group member added successfully");
+    }
 }
 
 pub fn parse_group_file(path: &PathBuf) -> Option<NewGroupPayload> {
