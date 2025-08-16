@@ -1,6 +1,14 @@
-use null_talk_server::{ServerConfig, handlers::handle_client};
 use std::sync::Arc;
-use tokio::{net::TcpListener, sync::Mutex};
+
+use common::net::Packet;
+use null_talk_server::{
+    ServerConfig,
+    handlers::{handle_client, task::start_writer_task},
+};
+use tokio::{
+    net::TcpListener,
+    sync::{Mutex as AsyncMutex, mpsc},
+};
 
 #[tokio::main]
 async fn main() {
@@ -17,14 +25,20 @@ async fn main() {
     let listener = TcpListener::bind(&server_address).await.unwrap();
     println!("🚀 Server listening on {}", &server_address);
 
+    let (tx, rx) = mpsc::unbounded_channel::<Packet>();
+    let _ = start_writer_task(rx).await;
+
+    let sender: Arc<AsyncMutex<mpsc::UnboundedSender<Packet>>> = Arc::new(AsyncMutex::new(tx));
     loop {
-        let (stream, _) = listener.accept().await.unwrap();
-
-        // let stream = Arc::new(stream);
-        let (reader, writer) = stream.into_split();
-        let reader = Arc::new(Mutex::new(reader));
-        let writer = Arc::new(Mutex::new(writer));
-
-        tokio::spawn(async move { handle_client(reader, writer).await });
+        match listener.accept().await {
+            Ok((stream, _)) => {
+                let sd_clone = sender.clone();
+                tokio::spawn(async move { handle_client(stream, sd_clone).await });
+            }
+            Err(e) => {
+                eprintln!("Failed to accept connection: {:?}", e);
+                continue;
+            }
+        };
     }
 }

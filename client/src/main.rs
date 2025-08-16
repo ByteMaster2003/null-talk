@@ -1,107 +1,58 @@
-use common::utils::{
-    enc::{parse_private_key, parse_public_key},
-    file::read_file_contents,
-};
 use null_talk_client::{
     data,
     handlers::handle_client,
-    types::ConnectionConfig,
-    utils::{parse_client_config, take_file_input, take_user_input},
+    types::{LogLevel, LogMessage},
+    ui::run_terminal,
+    utils::configure_client,
 };
-use std::{env, sync::Arc};
-use tokio::{net::TcpStream, sync::Mutex};
+use std::env;
+use tokio::net::TcpStream;
 
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = env::args().collect();
-    configure_client(&args);
+    configure_client(&args).await;
 
-    let config_lock = data::CLIENT_CONFIG.lock().unwrap();
-    let config = match config_lock.as_ref() {
-        Some(cfg) => cfg,
-        None => {
-            eprintln!("❌ Something went wrong!");
-            return;
-        }
-    };
-    let addr = format!("{}:{}", &config.hostname, &config.port);
-    drop(config_lock);
-
-    // Try connecting
-    match TcpStream::connect(&addr).await {
-        Ok(stream) => {
-            println!("✅ Successfully connected to {}", addr);
-
-            let (reader, writer) = stream.into_split();
-            let reader = Arc::new(Mutex::new(reader));
-            let writer = Arc::new(Mutex::new(writer));
-            match handle_client(reader, writer).await {
-                Ok(_) => {}
-                Err(e) => {
-                    eprintln!("❌ Failed to handle client: {}", e);
+    // Create TCP connection thread
+    let tcp = tokio::spawn(async move {
+        let addr = {
+            let config_lock = data::CLIENT_CONFIG.lock().await;
+            let config = match config_lock.as_ref() {
+                Some(cfg) => cfg,
+                None => {
+                    LogMessage::log(LogLevel::ERROR, "Configuration not found!".into(), 0).await;
                     return;
                 }
             };
+
+            format!("{}:{}", &config.hostname, &config.port)
+        };
+
+        match TcpStream::connect(addr.clone()).await {
+            Ok(stream) => {
+                LogMessage::log(
+                    LogLevel::INFO,
+                    format!("Successfully connected to {}", addr.clone()),
+                    5,
+                )
+                .await;
+
+                handle_client(stream).await;
+            }
+            Err(_) => {
+                LogMessage::log(LogLevel::ERROR, format!("Failed to connect to {}", addr), 0).await;
+                return;
+            }
         }
-        Err(e) => {
-            eprintln!("❌ Failed to connect to {}: {}", addr, e);
-            return;
-        }
-    };
-}
+    });
 
-fn configure_client(args: &[String]) {
-    let mut config = data::CLIENT_CONFIG.lock().unwrap();
-    if args.len() == 2 {
-        let config_path = &args[1];
-        match parse_client_config(config_path) {
-            Some(cfg) => *config = Some(cfg),
-            None => {
-                eprintln!("❌ Failed to load configuration from {}", config_path);
-                return;
-            }
-        };
-    } else {
-        // Ask connection config
-        let hostname = take_user_input("Enter server hostname: ");
-        let port = take_user_input("Enter port: ");
-        let name = take_user_input("Enter username: ");
+    color_eyre::install().expect("Failed to install color_eyre");
+    let terminal = ratatui::init();
 
-        let public_key = take_file_input("Enter public key path: ");
-        let rsa_public_key = match read_file_contents(&public_key) {
-            Ok(contents) => match parse_public_key(&contents) {
-                Ok(key) => key,
-                Err(e) => {
-                    eprintln!("❌ Failed to parse public key: {}", e);
-                    return;
-                }
-            },
-            Err(e) => {
-                eprintln!("❌ Failed to read public key file: {}", e);
-                return;
-            }
-        };
-        let private_key = take_file_input("Enter private key path: ");
-        let rsa_private_key = match read_file_contents(&private_key) {
-            Ok(contents) => match parse_private_key(&contents) {
-                Ok(key) => key,
-                Err(e) => {
-                    eprintln!("❌ Failed to parse private key: {}", e);
-                    return;
-                }
-            },
-            Err(e) => {
-                eprintln!("❌ Failed to read private key file: {}", e);
-                return;
-            }
-        };
+    let _ = run_terminal(terminal)
+        .await
+        .expect("Failed to run terminal");
 
-        *config = Some(ConnectionConfig {
-            hostname,
-            port,
-            name,
-            public_key: rsa_public_key,
-            private_key: rsa_private_key,
-        });
-    }
+    ratatui::restore();
+    tcp.abort();
 }

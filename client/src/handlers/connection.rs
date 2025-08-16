@@ -1,33 +1,39 @@
-use std::{
-    collections::{HashMap, hash_map::Entry},
-    path::PathBuf,
-};
+use std::{collections::HashMap, path::PathBuf};
 
 use config::{Config, File};
 
-use crate::{data::SESSIONS, types::Session};
+use crate::{
+    data::SESSIONS,
+    types::{LogLevel, LogMessage, Session},
+};
 use common::{
     net::{ChatMessageKind, Packet, StreamReader, StreamWriter},
     types::{
         ChatMode, EncryptionConfig, NewSessionPayload, NewSessionResponse, ServerResponse,
         SymmetricAlgo,
     },
-    utils::{enc::hash_string, file::resolve_path, net as netutils},
+    utils::{file::resolve_path, net as netutils},
 };
 
 pub async fn new_connection(input: &str, rd: StreamReader, wt: StreamWriter) -> Option<Session> {
     let path = match resolve_path(input) {
         Ok(path) => path,
         Err(_) => {
-            eprintln!("Invalid file path: {}", input);
+            let _ =
+                LogMessage::log(LogLevel::ERROR, format!("Invalid file path: {}", input), 5).await;
             return None;
         }
     };
 
-    let mut session = match parse_connection_file(&path) {
+    let mut session = match parse_connection_file(&path).await {
         Some(session) => session,
         None => {
-            eprintln!("Failed to parse connection file: {:?}", path);
+            let _ = LogMessage::log(
+                LogLevel::ERROR,
+                format!("Failed to parse connection file: {:?}", path),
+                5,
+            )
+            .await;
             return None;
         }
     };
@@ -39,38 +45,60 @@ pub async fn new_connection(input: &str, rd: StreamReader, wt: StreamWriter) -> 
     };
 
     let packet = Packet {
-        kind: ChatMessageKind::Command("/new".to_string()),
-        payload: bincode::encode_to_vec(&new_session_payload, bincode::config::standard())
-            .unwrap_or("Failed to encode payload".into()),
+        kind: ChatMessageKind::Command("new".to_string()),
+        payload: match bincode::encode_to_vec(&new_session_payload, bincode::config::standard()) {
+            Ok(vec) => vec,
+            Err(e) => {
+                let _ = LogMessage::log(LogLevel::ERROR, format!("Something went wrong: {}", e), 5)
+                    .await;
+                return None;
+            }
+        },
     };
 
     if let Err(_) = netutils::write_packet(wt.clone(), packet).await {
-        eprintln!("Failed to send packet");
+        let _ = LogMessage::log(
+            LogLevel::ERROR,
+            format!("Something went wrong, pls check your network connection"),
+            5,
+        )
+        .await;
         return None;
     }
 
     let response: ServerResponse = match netutils::read_packet(rd.clone()).await {
         Ok(packet) => packet,
         Err(err) => {
-            eprintln!("Failed to read response packet: {}", err);
+            let _ = LogMessage::log(
+                LogLevel::ERROR,
+                format!("Failed to read response packet: {}", err),
+                5,
+            )
+            .await;
             return None;
         }
     };
 
     if !response.success {
-        eprintln!(
-            "Error: {}",
-            response
-                .error
-                .unwrap_or_else(|| "Failed to create new session".into())
-        );
+        let _ = LogMessage::log(
+            LogLevel::ERROR,
+            format!(
+                "{}",
+                response
+                    .error
+                    .unwrap_or_else(|| "Failed to create new session".into())
+            ),
+            5,
+        )
+        .await;
+
         return None;
     }
 
     let payload = match response.payload {
         Some(ref payload) => payload,
         None => {
-            eprintln!("No payload found in response");
+            let _ = LogMessage::log(LogLevel::ERROR, format!("Something went wrong!"), 5).await;
             return None;
         }
     };
@@ -78,7 +106,9 @@ pub async fn new_connection(input: &str, rd: StreamReader, wt: StreamWriter) -> 
         match bincode::decode_from_slice(&payload, bincode::config::standard()) {
             Ok(chat) => chat,
             Err(err) => {
-                eprintln!("Error: {}", err);
+                let _ =
+                    LogMessage::log(LogLevel::ERROR, format!("Something went wrong: {}", err), 5)
+                        .await;
                 return None;
             }
         };
@@ -89,42 +119,37 @@ pub async fn new_connection(input: &str, rd: StreamReader, wt: StreamWriter) -> 
     Some(session)
 }
 
-pub fn get_session(key: &str) -> Option<Session> {
-    let sessions = SESSIONS.lock().unwrap();
+pub async fn get_session(key: &str) -> Option<Session> {
+    let sessions = SESSIONS.lock().await;
     sessions.get(key).cloned()
 }
 
-pub fn list_connections() {
-    let sessions = SESSIONS.lock().unwrap();
-    println!();
-    println!(
-        "–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––"
-    );
-    for (key, session) in sessions.iter() {
-        println!("| Connection: {} {:?}", key, session.mode);
-    }
-    println!(
-        "–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––"
-    );
-    println!();
-}
-
-pub fn rm_connection(key: &str) {
-    let mut sessions = SESSIONS.lock().unwrap();
+pub async fn rm_connection(key: &str) {
+    let mut sessions = SESSIONS.lock().await;
 
     match sessions.remove(key) {
         Some(session) => {
-            println!("Removed connection: {:?} {:?}", session.mode, key);
+            let _ = LogMessage::log(
+                LogLevel::INFO,
+                format!("Removed connection: {:?} {:?}", session.mode, key),
+                5,
+            )
+            .await;
             session
         }
         None => {
-            eprintln!("No connection found for key: {}", key);
+            let _ = LogMessage::log(
+                LogLevel::ERROR,
+                format!("No connection found for key: {}", key),
+                5,
+            )
+            .await;
             return;
         }
     };
 }
 
-fn parse_connection_file(path: &PathBuf) -> Option<Session> {
+async fn parse_connection_file(path: &PathBuf) -> Option<Session> {
     let file = File::with_name(path.to_str().unwrap());
     let cfg = Config::builder().add_source(file).build().unwrap();
 
@@ -136,7 +161,7 @@ fn parse_connection_file(path: &PathBuf) -> Option<Session> {
     let name = match deserialized.get("name").cloned() {
         Some(n) => n,
         None => {
-            eprintln!("Name is required!");
+            let _ = LogMessage::log(LogLevel::ERROR, format!("Name is required!"), 5).await;
             return None;
         }
     };
@@ -146,12 +171,14 @@ fn parse_connection_file(path: &PathBuf) -> Option<Session> {
             "dm" => ChatMode::Dm(name.clone()),
             "group" => ChatMode::Group(name.clone()),
             _ => {
-                eprintln!("Unknown connection type");
+                let _ =
+                    LogMessage::log(LogLevel::ERROR, format!("Unknown connection type"), 5).await;
                 return None;
             }
         },
         None => {
-            eprintln!("Connection type is required!");
+            let _ =
+                LogMessage::log(LogLevel::ERROR, format!("Connection type is required!"), 5).await;
             return None;
         }
     };
@@ -159,22 +186,24 @@ fn parse_connection_file(path: &PathBuf) -> Option<Session> {
     let id = match deserialized.get("id").cloned() {
         Some(id) => id,
         None => {
-            eprintln!("ID is required!");
+            let _ =
+                LogMessage::log(LogLevel::ERROR, format!("Missing 'id' in configuration"), 5).await;
             return None;
         }
     };
 
-    let encryption = match get_enc_config(&deserialized) {
+    let encryption = match get_enc_config(&deserialized).await {
         Some(config) => config,
         None => {
-            eprintln!("Failed to get encryption config");
+            let _ = LogMessage::log(
+                LogLevel::ERROR,
+                format!("Failed to get encryption config"),
+                5,
+            )
+            .await;
             return None;
         }
     };
-
-    let str = format!("{:?}{:?}{:?}", mode, encryption, id.clone());
-    let key = hash_string(&str);
-    let mut sessions = SESSIONS.lock().unwrap();
 
     let new_session = Session {
         id,
@@ -183,24 +212,21 @@ fn parse_connection_file(path: &PathBuf) -> Option<Session> {
         encryption,
     };
 
-    match sessions.entry(key.clone()) {
-        Entry::Occupied(entry) => Some(entry.get().clone()),
-        Entry::Vacant(entry) => {
-            entry.insert(new_session.clone());
-            sessions.get(&key).cloned()
-        }
-    };
-
     Some(new_session)
 }
 
-fn get_enc_config(deserialized: &HashMap<String, String>) -> Option<EncryptionConfig> {
+async fn get_enc_config(deserialized: &HashMap<String, String>) -> Option<EncryptionConfig> {
     let algo = match deserialized.get("algo").cloned() {
         Some(method) => match method.as_str() {
             "AES256" => SymmetricAlgo::AES256,
             "ChaCha20" => SymmetricAlgo::ChaCha20,
             _ => {
-                eprintln!("Invalid algo, supported values are: AES256, ChaCha20");
+                let _ = LogMessage::log(
+                    LogLevel::ERROR,
+                    format!("Invalid algo, supported values are: AES256, ChaCha20"),
+                    5,
+                )
+                .await;
                 return None;
             }
         },

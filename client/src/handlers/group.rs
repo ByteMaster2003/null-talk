@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use config::{Config, File};
 
-use crate::types::Session;
+use crate::types::{LogLevel, LogMessage, Session};
 use common::{
     net::{ChatMessageKind, Packet, StreamReader, StreamWriter},
     types::{
@@ -20,7 +20,12 @@ pub async fn create_new_group(
     let path = match resolve_path(file_path) {
         Ok(path) => path,
         Err(_) => {
-            eprintln!("Invalid file path: {:?}", file_path);
+            let _ = LogMessage::log(
+                LogLevel::ERROR,
+                format!("Invalid file path: {:?}", file_path),
+                5,
+            )
+            .await;
             return None;
         }
     };
@@ -28,36 +33,62 @@ pub async fn create_new_group(
     let payload = match parse_group_file(&path) {
         Some(info) => info,
         None => {
-            eprintln!("Failed to parse group file: {:?}", path);
+            let _ = LogMessage::log(
+                LogLevel::ERROR,
+                format!("Failed to parse group file: {:?}", path),
+                5,
+            )
+            .await;
             return None;
         }
     };
 
     let packet = Packet {
-        kind: ChatMessageKind::Command("/mkgp".to_string()),
-        payload: bincode::encode_to_vec(&payload, bincode::config::standard())
-            .unwrap_or("Failed to encode payload".into()),
+        kind: ChatMessageKind::Command("mkgp".to_string()),
+        payload: match bincode::encode_to_vec(&payload, bincode::config::standard()) {
+            Ok(vec) => vec,
+            Err(e) => {
+                let _ = LogMessage::log(LogLevel::ERROR, format!("Something went wrong: {}", e), 5)
+                    .await;
+                return None;
+            }
+        },
     };
 
     if let Err(_) = netutils::write_packet(wt.clone(), packet).await {
-        eprintln!("Failed to send packet");
+        let _ = LogMessage::log(
+            LogLevel::ERROR,
+            format!("Something went wrong, pls check your network connection"),
+            5,
+        )
+        .await;
         return None;
     }
 
     let response: ServerResponse = match netutils::read_packet(rd.clone()).await {
         Ok(resp) => resp,
         Err(e) => {
-            eprintln!("Failed to read response: {}", e);
+            let _ = LogMessage::log(
+                LogLevel::ERROR,
+                format!("Failed to read response: {}", e),
+                5,
+            )
+            .await;
             return None;
         }
     };
 
     if !response.success {
         let msg = response.error.clone();
-        eprintln!(
-            "Failed to create group: {}",
-            msg.unwrap_or_else(|| "".to_string())
-        );
+        let _ = LogMessage::log(
+            LogLevel::ERROR,
+            format!(
+                "Failed to create group: {}",
+                msg.unwrap_or_else(|| "".to_string())
+            ),
+            5,
+        )
+        .await;
         return None;
     }
     let group_info = match response.payload {
@@ -66,7 +97,12 @@ pub async fn create_new_group(
                 match bincode::decode_from_slice(&payload, bincode::config::standard()) {
                     Ok(info) => info,
                     Err(_) => {
-                        eprintln!("Failed to decode group info");
+                        let _ = LogMessage::log(
+                            LogLevel::ERROR,
+                            format!("Failed to decode group info"),
+                            5,
+                        )
+                        .await;
                         return None;
                     }
                 };
@@ -74,7 +110,7 @@ pub async fn create_new_group(
             group_info
         }
         None => {
-            eprintln!("Failed to create group");
+            let _ = LogMessage::log(LogLevel::ERROR, format!("Failed to create group"), 5).await;
             return None;
         }
     };
@@ -92,27 +128,52 @@ pub async fn create_new_group(
 
 pub async fn add_group_member(member_id: &str, rd: StreamReader, wt: StreamWriter) {
     let packet = Packet {
-        kind: common::net::ChatMessageKind::Command("/addgpm".to_string()),
-        payload: bincode::encode_to_vec(member_id, bincode::config::standard())
-            .unwrap_or("Failed to encode payload".into()),
+        kind: ChatMessageKind::Command("addgpm".to_string()),
+        payload: match bincode::encode_to_vec(member_id, bincode::config::standard()) {
+            Ok(vec) => vec,
+            Err(e) => {
+                let _ = LogMessage::log(LogLevel::ERROR, format!("Something went wrong: {}", e), 5)
+                    .await;
+                return;
+            }
+        },
     };
 
     if let Err(_) = netutils::write_packet(wt.clone(), packet).await {
-        eprintln!("Failed to send packet");
+        let _ = LogMessage::log(
+            LogLevel::ERROR,
+            format!("Something went wrong, pls check your network connection"),
+            5,
+        )
+        .await;
+
         return;
     }
 
     let response: ServerResponse = match netutils::read_packet(rd.clone()).await {
         Ok(resp) => resp,
         Err(e) => {
-            eprintln!("Failed to read response: {}", e);
+            let _ = LogMessage::log(
+                LogLevel::ERROR,
+                format!("Failed to read response: {}", e),
+                5,
+            )
+            .await;
             return;
         }
     };
 
     if !response.success {
         let msg = response.error.clone();
-        eprintln!("{}", msg.unwrap_or_else(|| "".to_string()));
+        let _ = LogMessage::log(
+            LogLevel::ERROR,
+            format!(
+                "Failed to add group member: {}",
+                msg.unwrap_or_else(|| "".to_string())
+            ),
+            5,
+        )
+        .await;
         return;
     } else {
         if let Some(payload) = response.payload {
@@ -120,15 +181,25 @@ pub async fn add_group_member(member_id: &str, rd: StreamReader, wt: StreamWrite
                 match bincode::decode_from_slice(&payload, bincode::config::standard()) {
                     Ok(data) => data,
                     Err(err) => {
-                        eprintln!("Failed to decode payload: {}", err);
+                        let _ = LogMessage::log(
+                            LogLevel::ERROR,
+                            format!("Something went wrong: {}", err),
+                            5,
+                        )
+                        .await;
                         return;
                     }
                 };
 
-            println!("{}", msg);
+            let _ = LogMessage::log(LogLevel::INFO, format!("{}", msg), 5).await;
             return;
         }
-        println!("Group member added successfully");
+        let _ = LogMessage::log(
+            LogLevel::INFO,
+            format!("Group member added successfully"),
+            5,
+        )
+        .await;
     }
 }
 

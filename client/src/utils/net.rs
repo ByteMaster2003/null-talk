@@ -15,7 +15,7 @@ pub async fn perform_handshake(
 
     // Get user credentials from config
     {
-        let config = CLIENT_CONFIG.lock().unwrap();
+        let config = CLIENT_CONFIG.lock().await;
         username = match config.as_ref() {
             Some(cfg) => cfg.name.clone(),
             None => return Err("❗️Failed to get username from config".into()),

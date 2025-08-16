@@ -1,9 +1,6 @@
-use common::types::{ChatMode, EncryptionConfig};
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
-use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+use common::types::{ChatMode, EncryptionConfig, Message};
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::Mutex as AsyncMutex;
 
 /**
  * Represents a user session, including encryption and chat mode.
@@ -16,16 +13,6 @@ pub struct Session {
     pub id: String,
 }
 
-pub struct Message {
-    pub sender_pub_key: Option<String>,
-    pub receiver_pub_key: Option<String>,
-    pub group_id: Option<String>,
-    pub content: String,
-    pub timestamps: u64,
-}
-
-pub type ActiveSession = Arc<Mutex<Option<Session>>>;
-pub type Sessions = Arc<Mutex<HashMap<String, Session>>>;
-pub type Messages = Arc<Mutex<Vec<Message>>>;
-pub type StreamReader = Arc<tokio::sync::Mutex<OwnedReadHalf>>;
-pub type StreamWriter = Arc<tokio::sync::Mutex<OwnedWriteHalf>>;
+pub type ActiveSession = Arc<AsyncMutex<Option<Session>>>;
+pub type Sessions = Arc<AsyncMutex<HashMap<String, Session>>>;
+pub type Messages = Arc<AsyncMutex<Vec<Message>>>;

@@ -16,9 +16,9 @@ use crate::{
 
 pub async fn process_command(payload: Vec<u8>, client_id: String, cmd: &str) -> ServerResponse {
     match cmd {
-        "/mkgp" => create_new_group(payload, client_id.clone()),
-        "/addgpm" => add_group_member(payload, client_id.clone()),
-        "/new" => create_new_session(payload, client_id),
+        "mkgp" => create_new_group(payload, client_id.clone()).await,
+        "addgpm" => add_group_member(payload, client_id.clone()).await,
+        "new" => create_new_session(payload, client_id).await,
         _ => ServerResponse {
             success: false,
             payload: None,
@@ -27,7 +27,7 @@ pub async fn process_command(payload: Vec<u8>, client_id: String, cmd: &str) -> 
     }
 }
 
-fn create_new_session(payload: Vec<u8>, client_id: String) -> ServerResponse {
+async fn create_new_session(payload: Vec<u8>, client_id: String) -> ServerResponse {
     let mut response = ServerResponse {
         success: true,
         payload: None,
@@ -47,11 +47,12 @@ fn create_new_session(payload: Vec<u8>, client_id: String) -> ServerResponse {
 
     let (session_id, session_key) = match new_session.mode {
         ChatMode::Dm(_) => {
-            match CLIENTS.lock().unwrap().get(&new_session.id) {
+            match CLIENTS.lock().await.get(&new_session.id) {
                 Some(client) => client,
                 None => {
                     response.success = false;
                     response.error = Some("Member not online".to_string());
+
                     return response;
                 }
             };
@@ -64,7 +65,7 @@ fn create_new_session(payload: Vec<u8>, client_id: String) -> ServerResponse {
                 let session_id2 =
                     hash_string(&format!("{}{}", new_session.id.clone(), client_id.clone()));
 
-                let mut conversations = CONVERSATIONS.lock().unwrap();
+                let mut conversations = CONVERSATIONS.lock().await;
                 let dm1 = conversations.get(&session_id).cloned();
                 let dm2 = conversations.get(&session_id2).cloned();
 
@@ -81,10 +82,9 @@ fn create_new_session(payload: Vec<u8>, client_id: String) -> ServerResponse {
                         };
 
                         match conversations.entry(session_id.clone()) {
-                            Entry::Occupied(entry) => Some(entry.get().clone()),
+                            Entry::Occupied(_) => (),
                             Entry::Vacant(entry) => {
                                 entry.insert(dm_chat.clone());
-                                conversations.get(&session_id).cloned()
                             }
                         };
                     }
@@ -94,11 +94,12 @@ fn create_new_session(payload: Vec<u8>, client_id: String) -> ServerResponse {
             (session_id, session_key)
         }
         ChatMode::Group(_) => {
-            let group = match GROUPS.lock().unwrap().get(&new_session.id) {
+            let group = match GROUPS.lock().await.get(&new_session.id) {
                 Some(group) => group.to_owned(),
                 None => {
                     response.success = false;
                     response.error = Some("Group not found".to_string());
+
                     return response;
                 }
             };
@@ -106,6 +107,7 @@ fn create_new_session(payload: Vec<u8>, client_id: String) -> ServerResponse {
             if !group.members.contains(&client_id) {
                 response.success = false;
                 response.error = Some("You are not a member of this group".to_string());
+
                 return response;
             }
 
@@ -126,7 +128,7 @@ fn create_new_session(payload: Vec<u8>, client_id: String) -> ServerResponse {
     return response;
 }
 
-fn create_new_group(payload: Vec<u8>, client_id: String) -> ServerResponse {
+async fn create_new_group(payload: Vec<u8>, client_id: String) -> ServerResponse {
     let (mut session_key, _) = generate_session_data();
 
     let mut response = ServerResponse {
@@ -165,7 +167,7 @@ fn create_new_group(payload: Vec<u8>, client_id: String) -> ServerResponse {
     };
 
     {
-        let mut groups = GROUPS.lock().unwrap();
+        let mut groups = GROUPS.lock().await;
 
         match groups.get(&group_id) {
             Some(group) => {
@@ -196,7 +198,7 @@ fn create_new_group(payload: Vec<u8>, client_id: String) -> ServerResponse {
     return response;
 }
 
-fn add_group_member(payload: Vec<u8>, client_id: String) -> ServerResponse {
+async fn add_group_member(payload: Vec<u8>, client_id: String) -> ServerResponse {
     let mut response = ServerResponse {
         success: true,
         payload: None,
@@ -214,7 +216,7 @@ fn add_group_member(payload: Vec<u8>, client_id: String) -> ServerResponse {
             }
         };
 
-    let mut group = match GROUPS.lock().unwrap().get(&data.group_id) {
+    let mut group = match GROUPS.lock().await.get(&data.group_id) {
         Some(group) => group.to_owned(),
         None => {
             response.success = false;
@@ -229,7 +231,7 @@ fn add_group_member(payload: Vec<u8>, client_id: String) -> ServerResponse {
         return response;
     }
 
-    let member = match CLIENTS.lock().unwrap().get(&data.member_id) {
+    let member = match CLIENTS.lock().await.get(&data.member_id) {
         Some(member) => member.clone(),
         None => {
             response.success = false;

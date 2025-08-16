@@ -1,7 +1,0 @@
-hostname = "localhost"
-port = "8080"
-name = "w3dev"
-
-# algo = "RSA2048"
-public_key = "~/.ssh/w3dev_id_rsa.pub"
-private_key = "~/.ssh/w3dev_id_rsa"

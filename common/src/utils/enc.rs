@@ -24,7 +24,7 @@ use crate::types::{EncryptionConfig, SymmetricAlgo};
 pub fn encrypt_message(
     message: &str,
     enc_config: EncryptionConfig,
-) -> Result<Vec<u8>, Box<dyn Error>> {
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     match enc_config.algo {
         SymmetricAlgo::AES256 => {
             let encryption_key = &enc_config.encryption_key.expect("❗️Missing encryption key");
@@ -76,7 +76,7 @@ pub fn encrypt_message(
 pub fn decrypt_message(
     message: &[u8],
     enc_config: EncryptionConfig,
-) -> Result<String, Box<dyn Error>> {
+) -> Result<String, Box<dyn Error + Send + Sync>> {
     match enc_config.algo {
         SymmetricAlgo::AES256 => {
             let encryption_key = &enc_config.encryption_key.expect("❗️Missing encryption key");

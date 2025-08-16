@@ -49,3 +49,12 @@ pub struct ServerResponse {
     pub payload: Option<Vec<u8>>,
     pub error: Option<String>,
 }
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+pub struct Message {
+    pub id: String,               // SessionId or GroupId
+    pub sender_id: String,        // UserId of sender
+    pub username: Option<String>, // UserName of sender
+    pub content: Vec<u8>,          // Message content
+    pub timestamps: u128,          // Timestamp
+}
