@@ -186,6 +186,14 @@ async fn handle_insert_cmd_mode(
             }
             _ => None,
         },
+        KeyModifiers::SHIFT => match code {
+            KeyCode::Char(c) => {
+                app.input.push(c.to_ascii_uppercase());
+                app.cursor_pos += 1;
+                return None;
+            }
+            _ => None,
+        },
         _ => None,
     }
 }
