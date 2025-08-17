@@ -1,5 +1,7 @@
-use std::collections::hash_map::Entry;
-
+use crate::{
+    data::{CLIENTS, CONVERSATIONS, GROUPS},
+    types::{DmChat, GroupChat},
+};
 use common::{
     types::{
         AddGroupMemberPayload, ChatMode, NewGroupPayload, NewGroupResponse, NewSessionPayload,
@@ -8,11 +10,6 @@ use common::{
     utils::enc::{generate_session_data, hash_string},
 };
 use uuid::Uuid;
-
-use crate::{
-    data::{CLIENTS, CONVERSATIONS, GROUPS},
-    types::{DmChat, GroupChat},
-};
 
 pub async fn process_command(payload: Vec<u8>, client_id: String, cmd: &str) -> ServerResponse {
     match cmd {
@@ -81,12 +78,9 @@ async fn create_new_session(payload: Vec<u8>, client_id: String) -> ServerRespon
                             members: (client_id.clone(), new_session.id.clone()),
                         };
 
-                        match conversations.entry(session_id.clone()) {
-                            Entry::Occupied(_) => (),
-                            Entry::Vacant(entry) => {
-                                entry.insert(dm_chat.clone());
-                            }
-                        };
+                        conversations
+                            .entry(session_id.clone())
+                            .or_insert(dm_chat.clone());
                     }
                 }
             }

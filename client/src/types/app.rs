@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use common::types::Message;
 use ratatui::widgets::{ListState, ScrollbarState};
 
 use crate::types::{LogMessage, Session};
@@ -19,10 +20,14 @@ pub enum Panels {
 
 pub struct AppConfig {
     pub mode: EditorMode,
+    pub user_id: String,
 
     pub sessions: HashMap<String, Session>,
     pub active_session: Option<String>,
     pub session_state: ListState,
+    pub messages: Vec<Message>,
+    pub message_state: ListState,
+    pub msg_auto_scroll: bool,
 
     pub active_panel: Panels,
 

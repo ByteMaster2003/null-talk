@@ -3,6 +3,7 @@ use crate::{
     types::{LogMessage, Session},
     ui::{self, events::handle_events},
 };
+use common::types::Message;
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, Event, KeyEventKind},
@@ -37,28 +38,55 @@ pub async fn run_terminal(mut terminal: DefaultTerminal) -> color_eyre::Result<(
     });
 
     loop {
-        let sessions = {
-            let s = data::SESSIONS.lock().await;
-            s.clone()
-        };
-        set_sessions(sessions);
-
+        update_app_data().await;
         terminal.draw(draw_frame)?;
 
-        if let Event::Key(key) = event::read()? {
-            if key.kind == KeyEventKind::Press {
-                let res = handle_events(key.code, key.modifiers).await;
-                if let Some(cmd) = res {
-                    if cmd == "quit" {
-                        break;
+        if event::poll(Duration::from_millis(100))? {
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
+                    if let Some(cmd) = handle_events(key.code, key.modifiers).await {
+                        if cmd == "quit" {
+                            break;
+                        }
                     }
                 }
+                _ => {}
             }
         }
     }
 
     error_task.abort();
     Ok(())
+}
+
+async fn update_app_data() {
+    let sessions = {
+        let s = data::SESSIONS.lock().await;
+        s.clone()
+    };
+    let messages = {
+        let messages = data::MESSAGES.lock().await;
+
+        match get_active_session() {
+            Some(ref session) => match messages.get(&session.clone()) {
+                Some(msg) => {
+                    let m = msg.lock().await;
+                    m.to_owned()
+                }
+                None => Vec::new(),
+            },
+            None => Vec::new(),
+        }
+    };
+    let user_id = {
+        let config = data::CLIENT_CONFIG.lock().await;
+        match config.as_ref() {
+            Some(cfg) => cfg.user_id.clone(),
+            None => String::new(),
+        }
+    };
+
+    set_sessions(sessions, messages, user_id);
 }
 
 fn set_log(message: LogMessage) {
@@ -71,9 +99,16 @@ fn hide_log() {
     app.log = None;
 }
 
-fn set_sessions(sessions: HashMap<String, Session>) {
+fn get_active_session() -> Option<String> {
+    let app = data::APP_STATE.lock().unwrap();
+    app.active_session.clone()
+}
+
+fn set_sessions(sessions: HashMap<String, Session>, messages: Vec<Message>, user_id: String) {
     let mut app = data::APP_STATE.lock().unwrap();
     app.sessions = sessions;
+    app.messages = messages;
+    app.user_id = user_id;
 }
 
 fn draw_frame(frame: &mut Frame) {

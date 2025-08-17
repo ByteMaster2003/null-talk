@@ -1,5 +1,3 @@
-use std::collections::{HashMap, hash_map::Entry};
-
 use crate::{
     data,
     handlers::{add_group_member, create_new_group, get_session, new_connection, rm_connection},
@@ -10,6 +8,7 @@ use common::{
     net::{StreamReader, StreamWriter},
     utils::enc::public_key_to_user_id,
 };
+use std::collections::HashMap;
 
 pub struct CommandInfo {
     pub name: String,
@@ -123,12 +122,7 @@ pub async fn process_command(cmd: &str, rd: StreamReader, wt: StreamWriter) {
                     let mut s_list = data::SESSIONS.lock().await;
 
                     let key = session.id.clone();
-                    match s_list.entry(key.clone()) {
-                        Entry::Occupied(_) => (),
-                        Entry::Vacant(entry) => {
-                            entry.insert(session.clone());
-                        }
-                    };
+                    s_list.entry(key.clone()).or_insert(session.clone());
 
                     let mut session_lock = data::ACTIVE_SESSION.lock().await;
                     *session_lock = Some(session.clone());

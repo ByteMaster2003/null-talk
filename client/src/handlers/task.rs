@@ -32,11 +32,8 @@ pub async fn start_reader_task(rd: StreamReader) -> JoinHandle<()> {
                 ChatMessageKind::GroupMessage(id) => {
                     process_message(id.clone(), packet.payload.clone()).await;
                 }
-                _ => {
-                    eprintln!("Unknown packet kind");
-                }
+                _ => ()
             }
-            print!("{}", get_prompt().await);
         }
     })
 }
@@ -84,13 +81,6 @@ pub async fn start_command_task(
     })
 }
 
-async fn get_prompt() -> String {
-    match data::ACTIVE_SESSION.lock().await.as_ref() {
-        Some(session) => format!("{:?}> ", session.mode),
-        None => format!("> "),
-    }
-}
-
 async fn send_message(wt: StreamWriter, input: &str) {
     let session = match data::ACTIVE_SESSION.lock().await.as_ref() {
         Some(session) => session.to_owned(),
@@ -111,22 +101,28 @@ async fn send_message(wt: StreamWriter, input: &str) {
         ChatMode::Dm(_) => ChatMessageKind::DirectMessage(session.id.clone()),
         ChatMode::Group(_) => ChatMessageKind::GroupMessage(session.id.clone()),
     };
+
+    let mut msg_data = Message {
+        id: session.id.clone(),
+        username: Some(client_config.name.clone()),
+        sender_id: client_config.user_id.clone(),
+        content: input.as_bytes().to_vec(),
+        timestamps: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+    };
+
+    // Add the message into message list
+    update_msg_list(session.id.clone(), msg_data.clone()).await;
+
     match encrypt_message(input, session.encryption.clone()) {
         Ok(payload) => {
-            // Create Message payload
-            let payload = Message {
-                id: session.id.clone(),
-                username: Some(client_config.name.clone()),
-                sender_id: client_config.user_id.clone(),
-                content: payload,
-                timestamps: SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis(),
-            };
+            // Update encrypted message
+            msg_data.content = payload;
 
             // Encode the payload
-            let payload = match bincode::encode_to_vec(&payload, bincode::config::standard()) {
+            let payload = match bincode::encode_to_vec(&msg_data, bincode::config::standard()) {
                 Ok(payload) => payload,
                 Err(err) => {
                     LogMessage::log(
@@ -140,6 +136,8 @@ async fn send_message(wt: StreamWriter, input: &str) {
             };
             let packet = Packet { kind, payload };
             let _ = write_packet::<Packet>(wt.clone(), packet).await;
+
+            {}
         }
         Err(err) => {
             LogMessage::log(
@@ -172,7 +170,7 @@ async fn process_message(id: String, payload: Vec<u8>) {
         None => return,
     };
 
-    let decrypted_msg = match decrypt_message(&payload, session.encryption.clone()) {
+    let decrypted_msg = match decrypt_message(&msg.content, session.encryption.clone()) {
         Ok(msg) => msg,
         Err(err) => {
             LogMessage::log(
@@ -188,27 +186,18 @@ async fn process_message(id: String, payload: Vec<u8>) {
     msg.content = decrypted_msg.into_bytes();
 
     // Update message list
-    {
-        let mut messages = data::MESSAGES.lock().await;
-        match messages.get_mut(&id) {
-            Some(messages) => {
-                let mut messages = messages.lock().await;
-                messages.push(msg.clone());
-            }
-            None => {
-                messages.insert(id.clone(), Arc::new(AsyncMutex::new(vec![msg.clone()])));
-            }
-        };
-    }
+    update_msg_list(id.clone(), msg.clone()).await;
+}
 
-    if let Some(session) = data::ACTIVE_SESSION.lock().await.as_ref() {
-        if session.id.clone() == id.clone() {
-            let ui_tx = {
-                let channels = data::CHANNELS.lock().await;
-                channels.ui_tx.clone()
-            };
-
-            let _ = ui_tx.lock().await.send(msg);
+async fn update_msg_list(id: String, msg: Message) {
+    let mut messages = data::MESSAGES.lock().await;
+    match messages.get_mut(&id) {
+        Some(messages) => {
+            let mut messages = messages.lock().await;
+            messages.push(msg.clone());
+        }
+        None => {
+            messages.insert(id.clone(), Arc::new(AsyncMutex::new(vec![msg.clone()])));
         }
     };
 }

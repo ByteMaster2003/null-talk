@@ -2,11 +2,14 @@ use crate::{
     data,
     types::{LogLevel, LogMessage, Panels},
 };
+use chrono::DateTime;
+use common::types::Message;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Margin, Position, Rect},
     style::{Color, Style},
-    widgets::{Block, Borders, Paragraph},
+    text::{Line, Span},
+    widgets::{Block, Borders, HighlightSpacing, List, ListItem, Paragraph},
 };
 
 pub fn render_main_panel(frame: &mut Frame, area: Rect) {
@@ -29,7 +32,7 @@ pub fn render_main_panel(frame: &mut Frame, area: Rect) {
 
     // Render header, body, footer inside main panel
     render_main_header(frame, header_area, border_color);
-    frame.render_widget(Block::new(), body_area);
+    render_messages(frame, body_area);
     render_main_footer(frame, footer_area);
 
     {
@@ -80,7 +83,7 @@ fn render_main_header(frame: &mut Frame, header_area: Rect, border_color: Color)
 
     frame.render_widget(
         Paragraph::new(header_text)
-            .style(Style::default().fg(Color::White))
+            .style(Style::default().fg(Color::Magenta))
             .alignment(Alignment::Center)
             .block(
                 Block::new()
@@ -139,4 +142,97 @@ fn render_log_message(frame: &mut Frame, log_area: Rect, log: &LogMessage) {
         log_split[0],
     );
     frame.render_widget(Paragraph::new(log.msg.clone()), log_split[1]);
+}
+
+fn render_messages(frame: &mut Frame, area: Rect) {
+    let message_area = area.inner(Margin {
+        horizontal: 1,
+        vertical: 0,
+    });
+
+    let (messages, user_id) = {
+        let app = data::APP_STATE.lock().unwrap();
+        (app.messages.clone(), app.user_id.clone())
+    };
+
+    let no_msg_line = Line::from("No Messages Yet!").alignment(Alignment::Center);
+
+    let items: Vec<ListItem> = if messages.is_empty() {
+        vec![ListItem::new(no_msg_line)]
+    } else {
+        messages
+            .iter()
+            .enumerate()
+            .map(|(_, message)| format_message(message.clone(), user_id.clone()))
+            .collect()
+    };
+
+    let list_widget = List::new(items)
+        .highlight_symbol("| ")
+        .highlight_spacing(HighlightSpacing::Always);
+
+    {
+        let mut app: std::sync::MutexGuard<'_, crate::types::AppConfig> =
+            data::APP_STATE.lock().unwrap();
+        app.scroll_state = app.scroll_state.content_length(app.messages.len());
+        app.max_scroll = app
+            .messages
+            .len()
+            .saturating_sub(message_area.height.saturating_sub(2) as usize);
+
+        // Render stateful widget
+        frame.render_stateful_widget(list_widget, message_area, &mut app.message_state);
+        // frame.render_stateful_widget(
+        //     Scrollbar::new(ScrollbarOrientation::VerticalRight),
+        //     message_area,
+        //     &mut app.scroll_state,
+        // );
+
+        if app.msg_auto_scroll {
+            app.message_state.select_last();
+        }
+    }
+}
+
+fn format_message(message: Message, user_id: String) -> ListItem<'static> {
+    let msg = message.clone();
+
+    let date_time_string = format_date_time(msg.timestamps);
+    let prompt_style = {
+        if user_id == msg.sender_id {
+            Style::default().fg(Color::LightYellow)
+        } else {
+            Style::default().fg(Color::Cyan)
+        }
+    };
+
+    // First line with username and timestamp
+    let line1 = Line::from(Span::styled(
+        format!(
+            "{} | {}",
+            msg.username.unwrap_or_else(|| msg.sender_id[..8].into()),
+            date_time_string,
+        ),
+        prompt_style,
+    ))
+    .alignment(Alignment::Left);
+
+    // Second line message content
+    let line2 = Line::from(Span::styled(
+        format!("> {}", String::from_utf8_lossy(&msg.content).to_string()),
+        Style::default().fg(Color::Gray),
+    ))
+    .alignment(Alignment::Left);
+
+    ListItem::new(vec![line1, line2, Line::from("")])
+}
+
+fn format_date_time(ts: u128) -> String {
+    let secs = (ts / 1000) as i64;
+    let nsecs = ((ts % 1000) * 1_000_000) as u32;
+
+    let datetime = DateTime::from_timestamp(secs, nsecs).unwrap();
+
+    // Format like "17 Aug 3:41"
+    datetime.format("%d %b %-H:%M").to_string()
 }

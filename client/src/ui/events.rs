@@ -42,14 +42,32 @@ async fn handle_normal_mode(
                 return None;
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                if app.active_panel == Panels::SideBar {
-                    app.session_state.select_next();
+                match app.active_panel {
+                    Panels::Main => {
+                        app.msg_auto_scroll = false;
+                        app.message_state.select_next();
+                    }
+                    Panels::SideBar => app.session_state.select_next(),
                 }
                 return None;
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                if app.active_panel == Panels::SideBar {
-                    app.session_state.select_previous();
+                match app.active_panel {
+                    Panels::Main => {
+                        app.msg_auto_scroll = false;
+                        app.message_state.select_previous();
+                    }
+                    Panels::SideBar => app.session_state.select_previous(),
+                }
+                return None;
+            }
+            KeyCode::End | KeyCode::Char('g') => {
+                match app.active_panel {
+                    Panels::Main => {
+                        app.msg_auto_scroll = true;
+                        app.message_state.select_last();
+                    }
+                    Panels::SideBar => app.session_state.select_last(),
                 }
                 return None;
             }

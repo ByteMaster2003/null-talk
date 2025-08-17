@@ -1,4 +1,8 @@
-use crate::{handlers::task, utils::perform_handshake};
+use crate::{
+    handlers::task,
+    types::{LogLevel, LogMessage},
+    utils::perform_handshake,
+};
 use std::sync::Arc;
 use tokio::{net::TcpStream, sync::Mutex};
 
@@ -10,7 +14,7 @@ pub async fn handle_client(stream: TcpStream) {
     let _ = match perform_handshake(rd.clone(), wt.clone()).await {
         Ok(session_key) => session_key,
         Err(e) => {
-            println!("❌ Handshake failed: {}", e);
+            let _ = LogMessage::log(LogLevel::ERROR, format!("Handshake failed: {}", e), 0).await;
             return;
         }
     };

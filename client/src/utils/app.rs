@@ -3,15 +3,20 @@ use crate::{
     types::{AppConfig, EditorMode, Panels, Session},
 };
 use ratatui::widgets::{ListState, ScrollbarState};
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::HashMap;
 
 impl AppConfig {
     pub fn new() -> Self {
         AppConfig {
             mode: EditorMode::NORMAL,
+            user_id: String::new(),
+
             sessions: HashMap::new(),
+            messages: Vec::new(),
             active_session: None,
             session_state: ListState::default(),
+            message_state: ListState::default(),
+            msg_auto_scroll: true,
 
             active_panel: Panels::Main,
 
@@ -54,11 +59,6 @@ pub fn update_session(session: Session) {
     let mut app = data::APP_STATE.lock().unwrap();
     let key = session.id.clone();
 
-    match app.sessions.entry(key.clone()) {
-        Entry::Occupied(_) => (),
-        Entry::Vacant(entry) => {
-            entry.insert(session.clone());
-        }
-    };
+    app.sessions.entry(key.clone()).or_insert(session.clone());
     app.active_session = Some(key.clone());
 }
