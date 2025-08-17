@@ -3,6 +3,7 @@ use crate::{
     types::{AppConfig, EditorMode, Panels, Session},
 };
 use ratatui::widgets::{ListState, ScrollbarState};
+use tui_textarea::TextArea;
 use std::collections::HashMap;
 
 impl AppConfig {
@@ -28,8 +29,7 @@ impl AppConfig {
             max_scroll: 0,
             scroll_state: ScrollbarState::default(),
 
-            input: String::new(),
-            cursor_pos: 0,
+            input: TextArea::default(),
             log: None,
         }
     }

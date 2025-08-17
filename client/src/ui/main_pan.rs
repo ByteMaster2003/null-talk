@@ -6,7 +6,7 @@ use chrono::DateTime;
 use common::types::Message;
 use ratatui::{
     Frame,
-    layout::{Alignment, Constraint, Layout, Margin, Position, Rect},
+    layout::{Alignment, Constraint, Layout, Margin, Rect},
     style::{Color, Style},
     text::{Line, Span},
     widgets::{Block, Borders, HighlightSpacing, List, ListItem, Paragraph},
@@ -50,10 +50,16 @@ fn split_main_panel(area: Rect) -> (Rect, Rect, Rect, Rect) {
         vertical: 0,
         horizontal: 1,
     });
+
+    let required_height_for_input = {
+        let app = data::APP_STATE.lock().unwrap();
+        app.input.lines().len()
+    };
+
     let main_split = Layout::vertical([
         Constraint::Length(4),
         Constraint::Fill(1),
-        Constraint::Length(2),
+        Constraint::Length(required_height_for_input as u16 + 1),
         Constraint::Length(2),
     ])
     .split(inner_main_area);
@@ -106,18 +112,17 @@ fn render_main_footer(frame: &mut Frame, footer_area: Rect) {
     ])
     .split(inner_footer_area);
 
+    let (prompt_area, input_area) = (footer_split[0], footer_split[1]);
+
     {
         let app = data::APP_STATE.lock().unwrap();
         frame.render_widget(
             Paragraph::new(format!("{:?}: ", &app.mode))
                 .style(Style::default().fg(Color::LightMagenta)),
-            footer_split[0],
+            prompt_area,
         );
-        frame.render_widget(Paragraph::new(app.input.clone()), footer_split[1]);
-        frame.set_cursor_position(Position {
-            x: footer_split[1].x + app.cursor_pos as u16,
-            y: footer_split[1].y,
-        });
+
+        frame.render_widget(&app.input.clone(), input_area);
     }
 }
 

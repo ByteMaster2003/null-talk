@@ -44,7 +44,7 @@ pub async fn run_terminal(mut terminal: DefaultTerminal) -> color_eyre::Result<(
         if event::poll(Duration::from_millis(100))? {
             match event::read()? {
                 Event::Key(key) if key.kind == KeyEventKind::Press => {
-                    if let Some(cmd) = handle_events(key.code, key.modifiers).await {
+                    if let Some(cmd) = handle_events(key).await {
                         if cmd == "quit" {
                             break;
                         }

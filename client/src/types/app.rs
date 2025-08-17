@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use common::types::Message;
 use ratatui::widgets::{ListState, ScrollbarState};
+use tui_textarea::TextArea;
 
 use crate::types::{LogMessage, Session};
 
@@ -39,7 +40,6 @@ pub struct AppConfig {
     pub max_scroll: usize,
     pub scroll_state: ScrollbarState,
 
-    pub input: String,
-    pub cursor_pos: u16,
+    pub input: TextArea<'static>,
     pub log: Option<LogMessage>,
 }

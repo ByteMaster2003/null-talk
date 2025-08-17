@@ -1,14 +1,27 @@
 use std::sync::MutexGuard;
 
-use ratatui::crossterm::event::{KeyCode, KeyModifiers};
+use ratatui::{
+    crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
+    style::Style,
+};
+use tui_textarea::{CursorMove, TextArea};
 
 use crate::{
     data,
     types::{AppConfig, EditorMode, Panels},
 };
 
-pub async fn handle_events(code: KeyCode, modifier: KeyModifiers) -> Option<String> {
-    let app = data::APP_STATE.lock().unwrap();
+pub async fn handle_events(key: KeyEvent) -> Option<String> {
+    let code = key.code;
+    let modifier = key.modifiers;
+    let mut app = data::APP_STATE.lock().unwrap();
+
+    // kill the underline on the current line
+    app.input.set_cursor_line_style(Style::default());
+
+    // (optional) make sure your base text style isn't adding underline elsewhere
+    app.input.set_style(Style::default());
+    app.input.set_tab_length(2);
 
     match app.mode {
         EditorMode::NORMAL => handle_normal_mode(code, modifier, app).await,
@@ -84,11 +97,7 @@ async fn handle_normal_mode(
             _ => None,
         },
         KeyModifiers::CONTROL => match code {
-            KeyCode::Char(c) => {
-                app.input.push(c);
-                app.cursor_pos += 1;
-                return Some("quit".into());
-            }
+            KeyCode::Char('c') => return Some("quit".into()),
             _ => None,
         },
         _ => None,
@@ -104,19 +113,47 @@ async fn handle_insert_cmd_mode(
         KeyModifiers::NONE => match code {
             KeyCode::Esc => {
                 app.switch_mode(EditorMode::NORMAL);
-                app.input.clear();
-                app.cursor_pos = 0;
+                app.input = TextArea::default();
                 return None;
             }
             KeyCode::Backspace => {
-                if !app.input.is_empty() {
-                    app.input.pop().unwrap();
-                    app.cursor_pos -= 1;
-                }
+                app.input.delete_char();
+                return None;
+            }
+            KeyCode::Delete => {
+                app.input.delete_next_char();
+                return None;
+            }
+            KeyCode::Left => {
+                app.input.move_cursor(CursorMove::Back);
+                return None;
+            }
+            KeyCode::Right => {
+                app.input.move_cursor(CursorMove::Forward);
+                return None;
+            }
+            KeyCode::Down => {
+                app.input.move_cursor(CursorMove::Down);
+                return None;
+            }
+            KeyCode::Up => {
+                app.input.move_cursor(CursorMove::Up);
+                return None;
+            }
+            KeyCode::Tab => {
+                app.input.insert_tab();
+                return None;
+            }
+            KeyCode::Char(c) => {
+                app.input.insert_char(c);
                 return None;
             }
             KeyCode::Enter => {
-                let input = app.input.trim().to_string();
+                let input = app.input.lines().join("\n").trim().to_string();
+
+                if input.is_empty() {
+                    return None;
+                }
 
                 let tx = match app.mode {
                     EditorMode::COMMAND => {
@@ -134,62 +171,45 @@ async fn handle_insert_cmd_mode(
                 };
 
                 let _ = tx.lock().await.send(input).await;
-                app.input.clear();
-                app.cursor_pos = 0;
-                return None;
-            }
-            KeyCode::Char(c) => {
-                app.input.push(c);
-                app.cursor_pos += 1;
+                app.input = TextArea::default();
                 return None;
             }
             _ => None,
         },
-        KeyModifiers::SUPER => match code {
-            KeyCode::Backspace | KeyCode::Delete => {
-                app.input.clear();
-                app.cursor_pos = 0;
+        KeyModifiers::ALT => match code {
+            KeyCode::Backspace => {
+                app.input.delete_word();
+                return None;
+            }
+            KeyCode::Left => {
+                app.input.move_cursor(CursorMove::WordEnd);
+                return None;
+            }
+            KeyCode::Right => {
+                app.input.move_cursor(CursorMove::WordForward);
+                return None;
+            }
+            KeyCode::Down => {
+                app.input.move_cursor(CursorMove::ParagraphBack);
+                return None;
+            }
+            KeyCode::Up => {
+                app.input.move_cursor(CursorMove::ParagraphForward);
+                return None;
+            }
+            KeyCode::Enter => {
+                app.input.insert_newline();
                 return None;
             }
             _ => None,
         },
         KeyModifiers::CONTROL => match code {
-            KeyCode::Backspace | KeyCode::Delete => {
-                app.input.clear();
-                app.cursor_pos = 0;
-                return None;
-            }
-            KeyCode::Char(c) => {
-                app.input.push(c);
-                app.cursor_pos += 1;
-                return Some("quit".into());
-            }
-            _ => None,
-        },
-        KeyModifiers::ALT => match code {
-            KeyCode::Backspace | KeyCode::Delete => {
-                if app.cursor_pos > 0 {
-                    // Trim up to last space of punctuation
-                    let before = &app.input.clone()[..app.cursor_pos as usize];
-                    let mut new_before = before
-                        .trim_end_matches(|c: char| !c.is_whitespace() && !c.is_ascii_punctuation())
-                        .to_string();
-
-                    if new_before.len() != 0 {
-                        new_before.pop();
-                    }
-                    app.input = new_before.to_string();
-                    app.cursor_pos = new_before.len() as u16;
-                }
-
-                return None;
-            }
+            KeyCode::Char('c') => return Some("quit".into()),
             _ => None,
         },
         KeyModifiers::SHIFT => match code {
             KeyCode::Char(c) => {
-                app.input.push(c.to_ascii_uppercase());
-                app.cursor_pos += 1;
+                app.input.insert_char(c.to_ascii_uppercase());
                 return None;
             }
             _ => None,

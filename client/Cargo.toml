@@ -18,3 +18,4 @@ rsa = { workspace = true, features = ["serde", "sha2"] }
 ratatui = "0.29.0"
 color-eyre = "0.6.5"
 chrono = "0.4.41"
+tui-textarea = "0.7.0"
