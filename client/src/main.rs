@@ -11,7 +11,9 @@ use tokio::net::TcpStream;
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = env::args().collect();
-    configure_client(&args).await;
+    if !configure_client(&args).await {
+        return;
+    }
 
     // Create TCP connection thread
     let tcp = tokio::spawn(async move {

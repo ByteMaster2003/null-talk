@@ -99,13 +99,16 @@ fn parse_client_config(path: &str) -> Option<ConnectionConfig> {
     })
 }
 
-pub async fn configure_client(args: &[String]) {
+pub async fn configure_client(args: &[String]) -> bool {
     let mut config = data::CLIENT_CONFIG.lock().await;
     if args.len() == 2 {
         let config_path = &args[1];
         match parse_client_config(config_path) {
-            Some(cfg) => *config = Some(cfg),
-            None => return,
+            Some(cfg) => {
+                *config = Some(cfg);
+                return true;
+            }
+            None => return false,
         };
     } else {
         // Ask connection config
@@ -119,12 +122,12 @@ pub async fn configure_client(args: &[String]) {
                 Ok(key) => key,
                 Err(e) => {
                     eprintln!("❌ Failed to parse public key: {}", e);
-                    return;
+                    return false;
                 }
             },
             Err(e) => {
                 eprintln!("❌ Failed to read public key file: {}", e);
-                return;
+                return false;
             }
         };
         let private_key = utils::take_file_input("Enter private key path: ");
@@ -133,12 +136,12 @@ pub async fn configure_client(args: &[String]) {
                 Ok(key) => key,
                 Err(e) => {
                     eprintln!("❌ Failed to parse private key: {}", e);
-                    return;
+                    return false;
                 }
             },
             Err(e) => {
                 eprintln!("❌ Failed to read private key file: {}", e);
-                return;
+                return false;
             }
         };
 
@@ -152,5 +155,6 @@ pub async fn configure_client(args: &[String]) {
             public_key: rsa_public_key,
             private_key: rsa_private_key,
         });
+        return true;
     }
 }
