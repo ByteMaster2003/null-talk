@@ -168,7 +168,7 @@ fn render_messages(frame: &mut Frame, area: Rect) {
         messages
             .iter()
             .enumerate()
-            .map(|(_, message)| format_message(message.clone(), user_id.clone()))
+            .map(|(_, message)| format_message(message.clone(), user_id.clone(), message_area))
             .collect()
     };
 
@@ -199,7 +199,7 @@ fn render_messages(frame: &mut Frame, area: Rect) {
     }
 }
 
-fn format_message(message: Message, user_id: String) -> ListItem<'static> {
+fn format_message(message: Message, user_id: String, message_area: Rect) -> ListItem<'static> {
     let msg = message.clone();
 
     let date_time_string = format_date_time(msg.timestamps);
@@ -223,13 +223,16 @@ fn format_message(message: Message, user_id: String) -> ListItem<'static> {
     .alignment(Alignment::Left);
 
     // Second line message content
-    let line2 = Line::from(Span::styled(
-        format!("> {}", String::from_utf8_lossy(&msg.content).to_string()),
-        Style::default().fg(Color::Gray),
-    ))
-    .alignment(Alignment::Left);
+    let wrapped_lines = wrap_text_to_width(
+        &String::from_utf8_lossy(&msg.content).to_string(),
+        message_area.width,
+    );
 
-    ListItem::new(vec![line1, line2, Line::from("")])
+    let mut lines = Vec::new();
+    lines.push(line1);
+    lines.extend(wrapped_lines);
+
+    ListItem::new(lines.clone())
 }
 
 fn format_date_time(ts: u128) -> String {
@@ -240,4 +243,56 @@ fn format_date_time(ts: u128) -> String {
 
     // Format like "17 Aug 3:41"
     datetime.format("%d %b %-H:%M").to_string()
+}
+
+fn wrap_text_to_width(text: &str, max_width: u16) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+    let mut current = String::new();
+
+    for word in text.split_whitespace() {
+        // if adding this word would exceed max_width
+        if current.len() + word.len() + 1 > (max_width - 2) as usize {
+            lines.push(
+                Line::from(Span::styled(
+                    format!(
+                        "{}{}",
+                        match lines.len() {
+                            0 => "> ",
+                            _ => "  ",
+                        },
+                        current.clone()
+                    ),
+                    Style::default().fg(Color::Gray),
+                ))
+                .alignment(Alignment::Left),
+            );
+            current.clear();
+        }
+
+        if !current.is_empty() {
+            current.push(' ');
+        }
+        current.push_str(word);
+    }
+
+    if !current.is_empty() {
+        lines.push(
+            Line::from(Span::styled(
+                format!(
+                    "{}{}",
+                    match lines.len() {
+                        0 => "> ",
+                        _ => "  ",
+                    },
+                    current
+                ),
+                Style::default().fg(Color::Gray),
+            ))
+            .alignment(Alignment::Left),
+        );
+    }
+
+    lines.push(Line::from(""));
+
+    lines
 }

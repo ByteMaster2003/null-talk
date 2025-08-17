@@ -88,8 +88,24 @@ async fn handle_normal_mode(
                 if app.active_panel == Panels::SideBar {
                     if let Some(selected) = app.session_state.selected() {
                         let sessions = app.sessions.keys().collect::<Vec<&String>>();
-                        app.active_session = Some(sessions[selected].clone());
+
+                        match Some(sessions[selected].clone()) {
+                            Some(session_id) => {
+                                let s_list = data::SESSIONS.lock().await;
+                                match s_list.get(&session_id) {
+                                    Some(session) => {
+                                        let mut session_lock = data::ACTIVE_SESSION.lock().await;
+                                        *session_lock = Some(session.clone());
+
+                                        app.active_session = Some(session_id);
+                                    }
+                                    None => (),
+                                }
+                            }
+                            None => (),
+                        };
                     }
+
                     app.switch_panel(Panels::Main);
                 }
                 return None;
