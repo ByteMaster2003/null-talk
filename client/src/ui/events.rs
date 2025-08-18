@@ -43,10 +43,12 @@ async fn handle_normal_mode(
     match modifier {
         KeyModifiers::NONE => match code {
             KeyCode::Char('i') => {
+                app.switch_panel(Panels::Main);
                 app.switch_mode(EditorMode::INSERT);
                 return None;
             }
             KeyCode::Char('/') => {
+                app.switch_panel(Panels::Main);
                 app.switch_mode(EditorMode::COMMAND);
                 return None;
             }
@@ -194,6 +196,7 @@ async fn handle_insert_cmd_mode(
 
                 let _ = tx.lock().await.send(input).await;
                 app.input = TextArea::default();
+                app.switch_mode(EditorMode::NORMAL);
                 return None;
             }
             _ => None,

@@ -13,7 +13,7 @@ use common::{
 use config::{Config, File};
 use std::{collections::HashMap, path::PathBuf};
 
-pub async fn new_connection(input: &str, rd: StreamReader, wt: StreamWriter) -> Option<Session> {
+pub async fn new_session(input: &str, rd: StreamReader, wt: StreamWriter) -> Option<Session> {
     let path = match resolve_path(input) {
         Ok(path) => path,
         Err(_) => {

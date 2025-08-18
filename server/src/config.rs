@@ -19,7 +19,7 @@ impl ServerConfig {
         let mut config_path: PathBuf = root_dir.join("Config.toml");
 
         if !config_path.exists() {
-            config_path = PathBuf::from("/etc/irc-server/Config.toml");
+            config_path = PathBuf::from("/etc/null-talk/Config.toml");
         }
 
         if !config_path.exists() {

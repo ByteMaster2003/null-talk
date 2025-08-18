@@ -1,6 +1,6 @@
 use crate::{
     data,
-    handlers::{add_group_member, create_new_group, get_session, new_connection, rm_connection},
+    handlers::{add_group_member, create_new_group, new_session, rm_connection},
     types::{LogLevel, LogMessage, app::update_session},
 };
 use common::{
@@ -59,14 +59,6 @@ pub async fn process_command(cmd: &str, rd: StreamReader, wt: StreamWriter) {
                 usage: "my-id".into(),
             },
         ),
-        (
-            "chat",
-            CommandInfo {
-                name: "chat".into(),
-                desc: "Start a chat".into(),
-                usage: "chat <chat_id>".into(),
-            },
-        ),
     ]);
 
     let parts: Vec<&str> = cmd.split_whitespace().collect();
@@ -118,7 +110,7 @@ pub async fn process_command(cmd: &str, rd: StreamReader, wt: StreamWriter) {
                 .await;
                 return;
             }
-            match new_connection(parts[1], rd.clone(), wt.clone()).await {
+            match new_session(parts[1], rd.clone(), wt.clone()).await {
                 Some(session) => {
                     let mut s_list = data::SESSIONS.lock().await;
 
@@ -131,7 +123,7 @@ pub async fn process_command(cmd: &str, rd: StreamReader, wt: StreamWriter) {
                     update_session(session.clone());
                     let _ = LogMessage::log(
                         LogLevel::INFO,
-                        format!("New connection created successfully: {}", &session.id[..8]),
+                        format!("New session created successfully: {}", &session.id[..8]),
                         0,
                     )
                     .await;
@@ -212,40 +204,6 @@ pub async fn process_command(cmd: &str, rd: StreamReader, wt: StreamWriter) {
                             .await;
                 }
             }
-        }
-        "chat" => {
-            if parts.len() < 2 {
-                let _ = LogMessage::log(
-                    LogLevel::ERROR,
-                    format!(
-                        "{}: {}",
-                        commands.get("chat").unwrap().name,
-                        commands.get("chat").unwrap().desc
-                    ),
-                    0,
-                )
-                .await;
-                return;
-            }
-            match get_session(parts[1]).await {
-                Some(session) => {
-                    let mut session_lock = data::ACTIVE_SESSION.lock().await;
-                    *session_lock = Some(session.clone());
-
-                    update_session(session.clone());
-                    let _ = LogMessage::log(
-                        LogLevel::INFO,
-                        format!("Switched to chat: {}", &session.id[..8]),
-                        0,
-                    )
-                    .await;
-                }
-                None => {
-                    let _ =
-                        LogMessage::log(LogLevel::ERROR, format!("Session not found!"), 0).await;
-                    return;
-                }
-            };
         }
         cmd => {
             let _ = LogMessage::log(LogLevel::ERROR, format!("Unknown command: {}", cmd), 0).await;
