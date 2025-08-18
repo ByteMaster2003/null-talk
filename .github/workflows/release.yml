@@ -1,0 +1,84 @@
+name: Release
+
+
+on:
+  push:
+    tags:
+      - "v*.*.*"   # Only run on version tags like v1.0.0
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build binaries
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        run: cargo build --release --workspace
+
+      - name: Rename binaries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mv target/release/null-talk-client null-talk-linux-client-${{ github.ref_name }}
+          mv target/release/null-talk-server null-talk-linux-server-${{ github.ref_name }}
+
+      - name: Rename binaries (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          move target\release\null-talk-client.exe null-talk-windows-client-${{ github.ref_name }}.exe
+          move target\release\null-talk-server.exe null-talk-windows-server-${{ github.ref_name }}.exe
+
+      - name: Rename binaries (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mv target/release/null-talk-client null-talk-macos-client-${{ github.ref_name }}
+          mv target/release/null-talk-server null-talk-macos-server-${{ github.ref_name }}
+
+      - name: Upload binaries as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: null-talk-${{ matrix.os }}
+          path: |
+            null-talk-windows-client-${{ github.ref_name }}.exe
+            null-talk-windows-server-${{ github.ref_name }}.exe
+            null-talk-linux-client-${{ github.ref_name }}
+            null-talk-linux-server-${{ github.ref_name }}
+            null-talk-macos-client-${{ github.ref_name }}
+            null-talk-macos-server-${{ github.ref_name }}
+
+  release:
+    name: Upload to GitHub Releases
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Flatten artifacts
+        run: mv artifacts/*/* .
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            null-talk-*-client-${{ github.ref_name }}*
+            null-talk-*-server-${{ github.ref_name }}*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
