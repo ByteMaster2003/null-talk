@@ -11,6 +11,10 @@ use ratatui::{
 };
 use std::{collections::HashMap, time::Duration};
 
+/// ### Runs the terminal UI.
+/// 
+/// - This function will start the terminal UI and handle user input and events.
+/// - It also starts a background task to listen for log messages.
 pub async fn run_terminal(mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
     // Start Error updating task
     let error_task = tokio::spawn(async move {
@@ -59,6 +63,7 @@ pub async fn run_terminal(mut terminal: DefaultTerminal) -> color_eyre::Result<(
     Ok(())
 }
 
+/// ### Updates the application data.
 async fn update_app_data() {
     let sessions = {
         let s = data::SESSIONS.lock().await;
@@ -89,21 +94,27 @@ async fn update_app_data() {
     set_sessions(sessions, messages, user_id);
 }
 
+/// ### Sets the log message.
 fn set_log(message: LogMessage) {
     let mut app = data::APP_STATE.lock().unwrap();
     app.log = Some(message);
 }
 
+/// ### Hides the log message.
+/// 
+/// This function will hide the log message from the UI.
 fn hide_log() {
     let mut app = data::APP_STATE.lock().unwrap();
     app.log = None;
 }
 
+/// ### Gets the active session.
 fn get_active_session() -> Option<String> {
     let app = data::APP_STATE.lock().unwrap();
     app.active_session.clone()
 }
 
+/// ### Sets the session data.
 fn set_sessions(sessions: HashMap<String, Session>, messages: Vec<Message>, user_id: String) {
     let mut app = data::APP_STATE.lock().unwrap();
     app.sessions = sessions;
@@ -111,6 +122,7 @@ fn set_sessions(sessions: HashMap<String, Session>, messages: Vec<Message>, user
     app.user_id = user_id;
 }
 
+/// ### Draws the terminal UI frame.
 fn draw_frame(frame: &mut Frame) {
     let layout = Layout::horizontal([Constraint::Percentage(30), Constraint::Percentage(70)]);
     let [side_panel, main_panel] = layout.areas(frame.area());

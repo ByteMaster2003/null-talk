@@ -5,6 +5,12 @@ use common::{
 };
 use rsa::RsaPrivateKey;
 
+/// ### Perform the initial handshake with the server.
+/// 
+/// This function handles the entire handshake process, including
+/// sending the initial handshake packet, receiving the server's
+/// response, and completing the handshake by establishing a
+/// secure session key.
 pub async fn perform_handshake(
     rd: StreamReader,
     wt: StreamWriter,

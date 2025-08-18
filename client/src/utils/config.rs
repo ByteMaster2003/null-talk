@@ -8,6 +8,7 @@ use common::utils::{
 };
 use config::{Config, File};
 
+/// Parse the client configuration file.
 fn parse_client_config(path: &str) -> Option<ConnectionConfig> {
     let config_path = match resolve_path(path) {
         Ok(path) => path,
@@ -99,6 +100,10 @@ fn parse_client_config(path: &str) -> Option<ConnectionConfig> {
     })
 }
 
+/// ### Configure the client with the given arguments.
+/// 
+/// This function will parse the configuration file if provided,
+/// otherwise it will prompt the user for the necessary information.
 pub async fn configure_client(args: &[String]) -> bool {
     let mut config = data::CLIENT_CONFIG.lock().await;
     if args.len() == 2 {

@@ -12,6 +12,9 @@ use ratatui::{
     widgets::{Block, Borders, HighlightSpacing, List, ListItem, Paragraph},
 };
 
+/// ### Renders the main panel.
+/// 
+/// This function will render the main panel of the application, including the header, body, footer, and any log messages.
 pub fn render_main_panel(frame: &mut Frame, area: Rect) {
     let active_panel = {
         let app = data::APP_STATE.lock().unwrap();
@@ -45,6 +48,7 @@ pub fn render_main_panel(frame: &mut Frame, area: Rect) {
     frame.render_widget(&main_block, area);
 }
 
+/// ### Splits the main panel into header, body, footer, and log areas.
 fn split_main_panel(area: Rect) -> (Rect, Rect, Rect, Rect) {
     let inner_main_area = area.inner(Margin {
         vertical: 0,
@@ -72,6 +76,7 @@ fn split_main_panel(area: Rect) -> (Rect, Rect, Rect, Rect) {
     (header_area, body_area, footer_area, message_area)
 }
 
+/// ### Renders the main header
 fn render_main_header(frame: &mut Frame, header_area: Rect, border_color: Color) {
     let inner_header_area = header_area.inner(Margin {
         vertical: 1,
@@ -100,6 +105,7 @@ fn render_main_header(frame: &mut Frame, header_area: Rect, border_color: Color)
     );
 }
 
+/// ### Renders the main footer
 fn render_main_footer(frame: &mut Frame, footer_area: Rect) {
     let inner_footer_area = footer_area.inner(Margin {
         vertical: 0,
@@ -126,6 +132,7 @@ fn render_main_footer(frame: &mut Frame, footer_area: Rect) {
     }
 }
 
+/// ### Renders the log message if there is any
 fn render_log_message(frame: &mut Frame, log_area: Rect, log: &LogMessage) {
     let inner_log_area = log_area.inner(Margin {
         vertical: 0,
@@ -149,6 +156,9 @@ fn render_log_message(frame: &mut Frame, log_area: Rect, log: &LogMessage) {
     frame.render_widget(Paragraph::new(log.msg.clone()), log_split[1]);
 }
 
+/// ### Renders the messages in the main panel
+/// 
+/// This function will render the messages in the main panel, including any user messages and system messages.
 fn render_messages(frame: &mut Frame, area: Rect) {
     let message_area = area.inner(Margin {
         horizontal: 1,
@@ -199,6 +209,7 @@ fn render_messages(frame: &mut Frame, area: Rect) {
     }
 }
 
+/// ### Formats a message for display in the main panel.
 fn format_message(message: Message, user_id: String, message_area: Rect) -> ListItem<'static> {
     let msg = message.clone();
 
@@ -235,6 +246,13 @@ fn format_message(message: Message, user_id: String, message_area: Rect) -> List
     ListItem::new(lines.clone())
 }
 
+/// ### Formats a date and time for display in the main panel.
+/// 
+/// # Example
+/// ```no_run
+/// let formatted = format_date_time(1633036800000);
+/// assert_eq!(formatted, "01 Oct 00:00");
+/// ```
 fn format_date_time(ts: u128) -> String {
     let secs = (ts / 1000) as i64;
     let nsecs = ((ts % 1000) * 1_000_000) as u32;
@@ -245,6 +263,7 @@ fn format_date_time(ts: u128) -> String {
     datetime.format("%d %b %-H:%M").to_string()
 }
 
+/// ### Wraps text to fit within a specified width.
 fn wrap_text_to_width(text: &str, max_width: u16) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
     let mut current = String::new();

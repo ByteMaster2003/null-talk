@@ -1,3 +1,4 @@
+use crate::{data, types::Panels};
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Margin, Rect},
@@ -6,8 +7,9 @@ use ratatui::{
     widgets::{Block, Borders, HighlightSpacing, List, ListItem, Paragraph},
 };
 
-use crate::{data, types::Panels};
-
+/// ### Renders the side panel.
+///
+/// This function will render the side panel of the application, including the header and session list.
 pub fn render_side_panel(frame: &mut Frame, area: Rect) {
     let active_panel = {
         let app = data::APP_STATE.lock().unwrap();
@@ -33,6 +35,7 @@ pub fn render_side_panel(frame: &mut Frame, area: Rect) {
     render_sessions(frame, session_area);
 }
 
+/// ### Splits the side panel into header, body, and footer areas.
 fn split_side_panel(area: Rect) -> (Rect, Rect, Rect) {
     let inner_main_area = area.inner(Margin {
         vertical: 0,
@@ -52,6 +55,7 @@ fn split_side_panel(area: Rect) -> (Rect, Rect, Rect) {
     (header_area, body_area, footer_area)
 }
 
+/// ### Renders the header of the side panel.
 fn render_header(frame: &mut Frame, header_area: Rect, border_color: Color) {
     let header_inner_area = header_area.inner(Margin {
         vertical: 1,
@@ -70,6 +74,7 @@ fn render_header(frame: &mut Frame, header_area: Rect, border_color: Color) {
     frame.render_widget(title, header_inner_area);
 }
 
+/// ### Renders the sessions in the side panel.
 fn render_sessions(frame: &mut Frame, area: Rect) {
     let sidebar_area = area.inner(Margin {
         horizontal: 1,

@@ -1,7 +1,3 @@
-use std::{collections::HashMap, path::PathBuf};
-
-use config::{Config, File};
-
 use crate::{
     data::SESSIONS,
     types::{LogLevel, LogMessage, Session},
@@ -14,6 +10,8 @@ use common::{
     },
     utils::{file::resolve_path, net as netutils},
 };
+use config::{Config, File};
+use std::{collections::HashMap, path::PathBuf};
 
 pub async fn new_connection(input: &str, rd: StreamReader, wt: StreamWriter) -> Option<Session> {
     let path = match resolve_path(input) {

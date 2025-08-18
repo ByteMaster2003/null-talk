@@ -1,6 +1,6 @@
 use crate::{
-    cmd::process_command,
     data,
+    handlers::process_command,
     types::{LogLevel, LogMessage},
 };
 use common::{
@@ -17,6 +17,26 @@ use std::{
 };
 use tokio::{sync::Mutex as AsyncMutex, task::JoinHandle};
 
+/// ### Spawns a background task that continuously reads packets from the stream.
+///
+/// This function acquires a lock on the given [`StreamReader`] and runs
+/// an asynchronous loop to receive incoming messages from the remote peer.
+///
+/// # Parameters
+///
+/// - `rd`: A shared reference to the reader half of the connection.
+///
+/// # Returns
+///
+/// A [`JoinHandle`] to the spawned task. The task runs until the stream
+/// is closed or an unrecoverable error occurs.
+///
+/// # Notes
+///
+/// The returned handle can be awaited or aborted to manage the lifecycle
+/// of the reader task.
+///
+/// [`StreamReader`]: common::net::StreamReader
 pub async fn start_reader_task(rd: StreamReader) -> JoinHandle<()> {
     tokio::spawn(async move {
         loop {
@@ -32,12 +52,32 @@ pub async fn start_reader_task(rd: StreamReader) -> JoinHandle<()> {
                 ChatMessageKind::GroupMessage(id) => {
                     process_message(id.clone(), packet.payload.clone()).await;
                 }
-                _ => ()
+                _ => (),
             }
         }
     })
 }
 
+/// ### Spawns a background task that continuously writes packets to the stream.
+///
+/// This function acquires a lock on the given [`StreamWriter`] and runs
+/// an asynchronous loop to send outgoing messages to the remote peer.
+///
+/// # Parameters
+///
+/// - `wt`: A shared reference to the writer half of the connection.
+///
+/// # Returns
+///
+/// A [`JoinHandle`] to the spawned task. The task runs until the stream
+/// is closed or an unrecoverable error occurs.
+///
+/// # Notes
+///
+/// The returned handle can be awaited or aborted to manage the lifecycle
+/// of the writer task.
+///
+/// [`StreamWriter`]: common::net::StreamWriter
 pub async fn start_writer_task(wt: StreamWriter) -> JoinHandle<()> {
     tokio::spawn(async move {
         let msg_rx = {
@@ -54,6 +94,31 @@ pub async fn start_writer_task(wt: StreamWriter) -> JoinHandle<()> {
     })
 }
 
+/// ### Spawns a background task that processes user commands and interacts with the stream.
+///
+/// This function drives the command-handling loop. It uses the provided
+/// [`StreamReader`] and [`StreamWriter`] to perform request/response I/O,
+/// while coordinating with the given reader task handle to manage state.
+///
+/// # Parameters
+///
+/// - `rd`: A shared reference to the reader half of the connection.
+/// - `wt`: A shared reference to the writer half of the connection.
+/// - `rd_task`: The handle to the running reader task. This can be used
+///   to restart or abort the reader if necessary.
+///
+/// # Returns
+///
+/// A [`JoinHandle`] to the spawned task. The task runs until the command
+/// loop is terminated or the underlying connection fails.
+///
+/// # Notes
+///
+/// This task typically serves as the "controller" of the session, binding
+/// together user input, message processing, and stream I/O.
+///
+/// [`StreamReader`]: common::net::StreamReader
+/// [`StreamWriter`]: common::net::StreamWriter
 pub async fn start_command_task(
     rd: StreamReader,
     wt: StreamWriter,

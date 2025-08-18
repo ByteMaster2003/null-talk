@@ -11,6 +11,9 @@ use crate::{
     types::{AppConfig, EditorMode, Panels},
 };
 
+/// ### Handles user input events for the application.
+/// 
+/// This function will process key events and update the application state accordingly.
 pub async fn handle_events(key: KeyEvent) -> Option<String> {
     let code = key.code;
     let modifier = key.modifiers;
@@ -31,6 +34,7 @@ pub async fn handle_events(key: KeyEvent) -> Option<String> {
     }
 }
 
+/// ### Handles key events in normal mode.
 async fn handle_normal_mode(
     code: KeyCode,
     modifier: KeyModifiers,
@@ -120,6 +124,8 @@ async fn handle_normal_mode(
     }
 }
 
+
+/// ### Handles key events in insert and cmd mode.
 async fn handle_insert_cmd_mode(
     code: KeyCode,
     modifier: KeyModifiers,

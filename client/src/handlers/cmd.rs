@@ -1,8 +1,7 @@
 use crate::{
     data,
     handlers::{add_group_member, create_new_group, get_session, new_connection, rm_connection},
-    types::{LogLevel, LogMessage},
-    utils::app::update_session,
+    types::{LogLevel, LogMessage, app::update_session},
 };
 use common::{
     net::{StreamReader, StreamWriter},
@@ -10,12 +9,14 @@ use common::{
 };
 use std::collections::HashMap;
 
+/// Information about a command.
 pub struct CommandInfo {
     pub name: String,
     pub desc: String,
     pub usage: String,
 }
 
+/// Processes a command.
 pub async fn process_command(cmd: &str, rd: StreamReader, wt: StreamWriter) {
     let commands = HashMap::from([
         (
