@@ -1,10 +1,10 @@
-use std::sync::Arc;
-
+use crate::handlers::{handle_direct_message, handle_group_message, process_command};
 use common::{
     net::{ChatMessageKind, Packet, StreamReader, StreamWriter},
     types::ServerResponse,
     utils::net::{read_packet, write_packet},
 };
+use std::sync::Arc;
 use tokio::{
     sync::{
         Mutex as AsyncMutex,
@@ -13,11 +13,8 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{
-    handlers::{handle_direct_message, handle_group_message},
-    process_command,
-};
-
+/// Start the writer task
+/// This task is responsible for sending packets to the appropriate clients
 pub async fn start_writer_task(mut rx: UnboundedReceiver<Packet>) -> JoinHandle<()> {
     tokio::spawn(async move {
         loop {
@@ -37,6 +34,9 @@ pub async fn start_writer_task(mut rx: UnboundedReceiver<Packet>) -> JoinHandle<
     })
 }
 
+/// Start the reader task
+/// This task is responsible for reading packets from the client
+/// and processing commands
 pub async fn start_reader_task(
     rd: StreamReader,
     wt: StreamWriter,

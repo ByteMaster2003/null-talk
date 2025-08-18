@@ -11,6 +11,7 @@ use common::{
 };
 use uuid::Uuid;
 
+/// Process a command from a client
 pub async fn process_command(payload: Vec<u8>, client_id: String, cmd: &str) -> ServerResponse {
     match cmd {
         "mkgp" => create_new_group(payload, client_id.clone()).await,
@@ -24,6 +25,8 @@ pub async fn process_command(payload: Vec<u8>, client_id: String, cmd: &str) -> 
     }
 }
 
+/// Create a new session
+/// It can be a group or direct message
 async fn create_new_session(payload: Vec<u8>, client_id: String) -> ServerResponse {
     let mut response = ServerResponse {
         success: true,
@@ -122,6 +125,8 @@ async fn create_new_session(payload: Vec<u8>, client_id: String) -> ServerRespon
     return response;
 }
 
+/// Create a new group
+/// If the group already exists, it won't create another group
 async fn create_new_group(payload: Vec<u8>, client_id: String) -> ServerResponse {
     let (mut session_key, _) = generate_session_data();
 
@@ -192,6 +197,7 @@ async fn create_new_group(payload: Vec<u8>, client_id: String) -> ServerResponse
     return response;
 }
 
+/// Add a member to an existing group
 async fn add_group_member(payload: Vec<u8>, client_id: String) -> ServerResponse {
     let mut response = ServerResponse {
         success: true,

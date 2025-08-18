@@ -6,10 +6,11 @@ use tokio::{
 };
 
 use crate::{
-    data::CLIENTS, handlers::task::start_reader_task, types::Client, utils::perform_handshake,
+    data::CLIENTS, handlers::task::start_reader_task, types::Client, net::perform_handshake,
 };
 use common::{net::Packet, utils::enc::public_key_to_user_id};
 
+/// Handle a new client connection
 pub async fn handle_client(stream: TcpStream, tx: Arc<AsyncMutex<UnboundedSender<Packet>>>) {
     let (rd, wt) = stream.into_split();
     let rd = Arc::new(AsyncMutex::new(rd));

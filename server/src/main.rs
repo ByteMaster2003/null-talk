@@ -10,6 +10,7 @@ use tokio::{
     sync::{Mutex as AsyncMutex, mpsc},
 };
 
+/// Main entry point for the server
 #[tokio::main]
 async fn main() {
     let config = match ServerConfig::load() {

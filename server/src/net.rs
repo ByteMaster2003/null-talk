@@ -7,6 +7,7 @@ use common::{
 };
 use rsa::RsaPublicKey;
 
+/// Perform the handshake process with the client
 pub async fn perform_handshake(
     rd: StreamReader,
     wt: StreamWriter,
