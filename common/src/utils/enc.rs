@@ -1,3 +1,8 @@
+//! This module provides encryption and decryption utilities.
+//! It supports various symmetric encryption algorithms.
+//! It also provides functions for key generation and management.
+//! Additionally, it offers utilities for parsing and validating cryptographic keys.
+
 use aes_gcm::{
     Aes256Gcm, Key, Nonce,
     aead::{Aead, KeyInit},
@@ -21,6 +26,9 @@ use std::error::Error;
 
 use crate::types::{EncryptionConfig, SymmetricAlgo};
 
+/// Encrypts a message using the specified encryption configuration.
+/// Returns error if encryption fails.
+/// On Success return vector of bytes
 pub fn encrypt_message(
     message: &str,
     enc_config: EncryptionConfig,
@@ -73,6 +81,9 @@ pub fn encrypt_message(
     }
 }
 
+/// Decrypts a message using the specified encryption configuration.
+/// Returns error if decryption fails.
+/// On Success return the original message String.
 pub fn decrypt_message(
     message: &[u8],
     enc_config: EncryptionConfig,
@@ -117,15 +128,15 @@ pub fn decrypt_message(
     }
 }
 
-/**
- * Attempts to parse an RSA private key from various formats.
- *
- * Supports:
- * - PKCS#1 PEM: "-----BEGIN RSA PRIVATE KEY-----"
- * - PKCS#8 PEM: "-----BEGIN PRIVATE KEY-----"
- * - Base64 DER (PKCS#1 or PKCS#8)
- * - OpenSSH private key: "-----BEGIN OPENSSH PRIVATE KEY-----"
- */
+/// Attempts to parse an RSA private key from various formats.
+///
+/// Supports:
+/// - PKCS#1 PEM: "-----BEGIN RSA PRIVATE KEY-----"
+/// - PKCS#8 PEM: "-----BEGIN PRIVATE KEY-----"
+/// - Base64 DER (PKCS#1 or PKCS#8)
+/// - OpenSSH private key: "-----BEGIN OPENSSH PRIVATE KEY-----"
+///
+/// Note: Password protected keys are not supported yet.
 pub fn parse_private_key(input: &str) -> Result<RsaPrivateKey, Box<dyn Error>> {
     let trimmed = input.trim();
 
@@ -178,6 +189,7 @@ pub fn parse_private_key(input: &str) -> Result<RsaPrivateKey, Box<dyn Error>> {
     }
 }
 
+/// Parses an RSA public key from various formats.
 pub fn parse_public_key(input: &str) -> Result<RsaPublicKey, Box<dyn std::error::Error>> {
     let ssh_pub = input.parse::<SshPublicKey>()?;
 
@@ -192,6 +204,7 @@ pub fn parse_public_key(input: &str) -> Result<RsaPublicKey, Box<dyn std::error:
     }
 }
 
+/// Converts an RSA public key to a user ID.
 pub fn public_key_to_user_id(pub_key: &RsaPublicKey) -> String {
     // Convert public key to DER format
     let der_bytes = pub_key.to_pkcs1_der().unwrap(); // or pkcs8_der if using PKCS#8
@@ -206,6 +219,7 @@ pub fn public_key_to_user_id(pub_key: &RsaPublicKey) -> String {
     hex::encode(hash)
 }
 
+/// Converts an RSA public key to an OpenSSH public key.
 pub fn to_ssh_public_key(pubkey: &RsaPublicKey) -> SshPublicKey {
     let e = ssh_key::Mpint::from_bytes(pubkey.e().to_bytes_be().as_slice())
         .expect("Failed to convert e");
@@ -217,6 +231,8 @@ pub fn to_ssh_public_key(pubkey: &RsaPublicKey) -> SshPublicKey {
     SshPublicKey::new(KeyData::Rsa(ssh_pub), "comment".to_string())
 }
 
+/// Signs a nonce using the specified RSA private key.
+/// Returns the signature as a vector of bytes.
 pub fn sign_nonce(private_key: &RsaPrivateKey, nonce: &[u8]) -> Vec<u8> {
     // Hash the nonce first
     let mut hasher = <Sha256 as Digest>::new();
@@ -229,6 +245,8 @@ pub fn sign_nonce(private_key: &RsaPrivateKey, nonce: &[u8]) -> Vec<u8> {
         .expect("Failed to sign nonce")
 }
 
+/// Verifies a nonce signature using the specified RSA public key.
+/// Returns true if the signature is valid, false otherwise.
 pub fn verify_nonce_signature(public_key: &RsaPublicKey, nonce: &[u8], signature: &[u8]) -> bool {
     // Hash the nonce first (must match client's hashing)
     let mut hasher = <Sha256 as Digest>::new();
@@ -241,6 +259,9 @@ pub fn verify_nonce_signature(public_key: &RsaPublicKey, nonce: &[u8], signature
         .is_ok()
 }
 
+/// Generates a new session key and nonce.
+/// Returns a tuple containing the session key and nonce.
+/// Usage: let (session_key, nonce) = generate_session_data();
 pub fn generate_session_data() -> (Vec<u8>, Vec<u8>) {
     let mut session_key = vec![0u8; 32]; // 256-bit key
     let mut nonce = vec![0u8; 12]; // 96-bit nonce
@@ -251,6 +272,8 @@ pub fn generate_session_data() -> (Vec<u8>, Vec<u8>) {
     (session_key, nonce)
 }
 
+/// Hashes a string using SHA-256.
+/// Returns the hash as a hexadecimal string.
 pub fn hash_string(input: &str) -> String {
     let mut hasher = <Sha256 as Digest>::new();
     hasher.update(input);
