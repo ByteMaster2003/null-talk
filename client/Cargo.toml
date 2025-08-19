@@ -19,3 +19,6 @@ ratatui = "0.29.0"
 color-eyre = "0.6.5"
 chrono = "0.4.41"
 tui-textarea = "0.7.0"
+tokio-rustls.workspace = true
+rustls.workspace = true
+webpki-roots = "1.0.2"

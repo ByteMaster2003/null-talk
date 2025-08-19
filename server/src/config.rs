@@ -4,21 +4,15 @@ use std::{env, error::Error, path::PathBuf};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct TLSConfig {
-    pub enabled: bool,
-    pub cert_path: Option<String>,
-    pub key_path: Option<String>,
+    pub cert_path: String,
+    pub key_path: String,
 }
 
 /// Configuration for the server
 #[derive(Debug, Deserialize, Clone)]
 pub struct ServerConfig {
-    /// Hostname or IP address of the server
-    pub host: String,
-
-    /// Port number for the server  
+    // pub domain: String,
     pub port: u16,
-
-    /// TLS configuration
     pub tls: Option<TLSConfig>
 }
 
@@ -52,6 +46,6 @@ impl ServerConfig {
 
     /// Get the server address as a string
     pub fn get_addr(&self) -> String {
-        format!("{}:{}", self.host, self.port)
+        format!("0.0.0.0:{}", self.port)
     }
 }

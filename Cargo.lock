@@ -1139,10 +1139,13 @@ dependencies = [
  "hex",
  "ratatui",
  "rsa",
+ "rustls",
  "serde",
  "ssh-key",
  "tokio",
+ "tokio-rustls",
  "tui-textarea",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2345,6 +2348,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a05d73b933a847d6cccdda8f838a22ff101ad9bf93e33684f39c1f5f0eece3d"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e8983c3ab33d6fb807cfcdad2491c4ea8cbc8ed839181c7dfd9c67c83e261b2"
+dependencies = [
+ "rustls-pki-types",
 ]
 
 [[package]]
