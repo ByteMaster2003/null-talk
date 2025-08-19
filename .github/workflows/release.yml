@@ -15,7 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, ubuntu-22.04-arm64, macos-latest, windows-latest]
 
     steps:
       - name: Checkout
@@ -30,32 +30,33 @@ jobs:
       - name: Rename binaries (Linux)
         if: runner.os == 'Linux'
         run: |
-          mv target/release/null-talk-client null-talk-linux-client-${{ github.ref_name }}
-          mv target/release/null-talk-server null-talk-linux-server-${{ github.ref_name }}
+          if [ "${{ runner.arch }}" = "X64" ]; then
+            mv target/release/null-talk-client null-talk-client-linux-x86_64
+            mv target/release/null-talk-server null-talk-server-linux-x86_64
+          elif [ "${{ runner.arch }}" = "ARM64" ]; then
+            mv target/release/null-talk-client null-talk-client-linux-arm64
+            mv target/release/null-talk-server null-talk-server-linux-arm64
+          fi
 
       - name: Rename binaries (Windows)
         if: runner.os == 'Windows'
         run: |
-          move target\release\null-talk-client.exe null-talk-windows-client-${{ github.ref_name }}.exe
-          move target\release\null-talk-server.exe null-talk-windows-server-${{ github.ref_name }}.exe
+          move target\release\null-talk-client.exe null-talk-client-windows.exe
+          move target\release\null-talk-server.exe null-talk-server-windows.exe
 
       - name: Rename binaries (macOS)
         if: runner.os == 'macOS'
         run: |
-          mv target/release/null-talk-client null-talk-macos-client-${{ github.ref_name }}
-          mv target/release/null-talk-server null-talk-macos-server-${{ github.ref_name }}
+          mv target/release/null-talk-client null-talk-client-macos
+          mv target/release/null-talk-server null-talk-server-macos
 
       - name: Upload binaries as artifacts
         uses: actions/upload-artifact@v4
         with:
           name: null-talk-${{ matrix.os }}
           path: |
-            null-talk-windows-client-${{ github.ref_name }}.exe
-            null-talk-windows-server-${{ github.ref_name }}.exe
-            null-talk-linux-client-${{ github.ref_name }}
-            null-talk-linux-server-${{ github.ref_name }}
-            null-talk-macos-client-${{ github.ref_name }}
-            null-talk-macos-server-${{ github.ref_name }}
+            null-talk-client-*
+            null-talk-server-*
 
   release:
     name: Upload to GitHub Releases
@@ -78,7 +79,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            null-talk-*-client-${{ github.ref_name }}*
-            null-talk-*-server-${{ github.ref_name }}*
+            null-talk-client-*
+            null-talk-server-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
