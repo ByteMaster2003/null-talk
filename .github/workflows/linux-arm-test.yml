@@ -1,0 +1,35 @@
+name: Create Linux Arm64 binary for testing
+
+on:
+  push:
+    branches:
+      - "test/*"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        run: cargo build --release --workspace
+
+      - name: Rename binaries
+        run: |
+          mkdir dist
+          mv target/release/null-talk-client dist/null-talk-client-linux-arm64
+          mv target/release/null-talk-server dist/null-talk-server-linux-arm64
+
+      - name: Upload Build to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.PRIVATE_KEY }}
+          source: "dist"
+          target: ${{ secrets.TARGET_PATH }}
