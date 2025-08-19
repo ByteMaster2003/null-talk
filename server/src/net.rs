@@ -17,10 +17,13 @@ pub async fn perform_handshake(
     rd: StreamReader,
     wt: StreamWriter,
 ) -> Result<(String, Vec<u8>, RsaPublicKey), Box<dyn std::error::Error + Send + Sync>> {
+    println!("Trying to receive handshake packet...");
     // Step: 0
     // Receive handshake packet from client with username and public_key
     let packet: HandshakePacket = read_packet(rd.clone()).await?;
+    println!("\nReceived handshake packet: {:?}\n", packet);
     if packet.step != 0 {
+        eprintln!("❗️ Invalid handshake step: expected 0, got {}", packet.step);
         let _ = close_connection(wt.clone(), "Invalid handshake step").await;
         return Err("Invalid handshake step".into());
     }
@@ -33,6 +36,7 @@ pub async fn perform_handshake(
         None => return Err("❗️Missing Public Key".into()),
     };
 
+    println!("Received handshake packet from client: {}", user_name);
     // Step: 1
     // Generate session data (nonce & session_key)
     // Send handshake packet from server with nonce
@@ -46,12 +50,14 @@ pub async fn perform_handshake(
         signature: None,
         session_key: None,
     };
+    println!("\nSending handshake packet with nonce: {:?}\n", nonce);
     write_packet(wt.clone(), packet).await?;
 
     // Step: 2
     // Receive signature and verify it
     let packet: HandshakePacket = read_packet(rd.clone()).await?;
     if packet.step != 2 {
+        eprintln!("❗️ Invalid handshake step: expected 2, got {}", packet.step);
         let _ = close_connection(wt.clone(), "Invalid handshake step").await;
         return Err("Invalid handshake step".into());
     }
@@ -61,6 +67,7 @@ pub async fn perform_handshake(
     };
 
     if !verify_nonce_signature(&public_key, &nonce, &signature) {
+        eprintln!("❗️ Invalid signature!");
         let _ = close_connection(wt.clone(), "Invalid signature!").await;
         return Err("Invalid signature!".into());
     }

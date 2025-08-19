@@ -44,9 +44,11 @@ async fn main() {
         loop {
             match listener.accept().await {
                 Ok((stream, _)) => {
+                    println!("🔒 New TLS connection from {}", stream.peer_addr().unwrap());
                     let acceptor = acceptor.clone();
                     let sd_clone = sender.clone();
 
+                    println!("🔒 Spawning new task for TLS connection");
                     tokio::spawn(async move {
                         match acceptor.accept(stream).await {
                             Ok(tls_stream) => handle_client(Box::new(tls_stream), sd_clone).await,

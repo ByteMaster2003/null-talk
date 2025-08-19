@@ -15,13 +15,18 @@ pub async fn handle_client(
     stream: Box<dyn AsyncStream>,
     tx: Arc<AsyncMutex<UnboundedSender<Packet>>>,
 ) {
+    println!("🔗 New client connection established");
     let (rd, wt) = tokio::io::split(stream);
     let rd: StreamReader = Arc::new(AsyncMutex::new(rd));
     let wt: StreamWriter = Arc::new(AsyncMutex::new(wt));
 
+    println!("🔗 Starting handshake...");
     let (name, session_key, public_key) = match perform_handshake(rd.clone(), wt.clone()).await {
         Ok(data) => data,
-        Err(_) => return,
+        Err(e) => {
+            eprintln!("❗️ Handshake failed: {:?}", e);
+            return;
+        }
     };
 
     let client_id = public_key_to_user_id(&public_key);
