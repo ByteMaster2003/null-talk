@@ -1,7 +1,7 @@
 use common::net::StreamWriter;
 
 /// Represents a connected client
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Client {
     /// username of the client
     pub username: String,

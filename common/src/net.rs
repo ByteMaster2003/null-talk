@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bincode::{Decode, Encode};
 use tokio::{
-    net::tcp::{OwnedReadHalf, OwnedWriteHalf},
+    io::{AsyncRead, AsyncWrite, ReadHalf, WriteHalf},
     sync::Mutex,
 };
 
@@ -46,7 +46,14 @@ pub struct HandshakePacket {
     pub session_key: Option<Vec<u8>>,
 }
 
+/// Custom trait that bundles AsyncRead + AsyncWrite
+pub trait AsyncStream: AsyncRead + AsyncWrite + Unpin + Send {}
+impl<T: AsyncRead + AsyncWrite + Unpin + Send> AsyncStream for T {}
+
 /// Represents a stream reader for a client
-pub type StreamReader = Arc<Mutex<OwnedReadHalf>>;
+// pub type StreamReader<S> = Arc<Mutex<OwnedReadHalf<S>>>;
+pub type StreamReader = Arc<Mutex<ReadHalf<Box<dyn AsyncStream>>>>;
 /// Represents a stream writer for a client
-pub type StreamWriter = Arc<Mutex<OwnedWriteHalf>>;
+// pub type StreamWriter = Arc<Mutex<OwnedWriteHalf>>;
+pub type StreamWriter = Arc<Mutex<WriteHalf<Box<dyn AsyncStream>>>>;
+

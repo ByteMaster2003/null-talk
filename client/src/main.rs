@@ -39,7 +39,7 @@ async fn main() {
                 )
                 .await;
 
-                handle_client(stream).await;
+                handle_client(Box::new(stream)).await;
             }
             Err(_) => {
                 LogMessage::log(LogLevel::ERROR, format!("Failed to connect to {}", addr), 0).await;

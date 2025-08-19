@@ -1,20 +1,23 @@
 use std::sync::Arc;
 
-use tokio::{
-    net::TcpStream,
-    sync::{Mutex as AsyncMutex, mpsc::UnboundedSender},
-};
+use tokio::sync::{Mutex as AsyncMutex, mpsc::UnboundedSender};
 
 use crate::{
-    data::CLIENTS, handlers::task::start_reader_task, types::Client, net::perform_handshake,
+    data::CLIENTS, handlers::task::start_reader_task, net::perform_handshake, types::Client,
 };
-use common::{net::Packet, utils::enc::public_key_to_user_id};
+use common::{
+    net::{AsyncStream, Packet, StreamReader, StreamWriter},
+    utils::enc::public_key_to_user_id,
+};
 
 /// Handle a new client connection
-pub async fn handle_client(stream: TcpStream, tx: Arc<AsyncMutex<UnboundedSender<Packet>>>) {
-    let (rd, wt) = stream.into_split();
-    let rd = Arc::new(AsyncMutex::new(rd));
-    let wt = Arc::new(AsyncMutex::new(wt));
+pub async fn handle_client(
+    stream: Box<dyn AsyncStream>,
+    tx: Arc<AsyncMutex<UnboundedSender<Packet>>>,
+) {
+    let (rd, wt) = tokio::io::split(stream);
+    let rd: StreamReader = Arc::new(AsyncMutex::new(rd));
+    let wt: StreamWriter = Arc::new(AsyncMutex::new(wt));
 
     let (name, session_key, public_key) = match perform_handshake(rd.clone(), wt.clone()).await {
         Ok(data) => data,

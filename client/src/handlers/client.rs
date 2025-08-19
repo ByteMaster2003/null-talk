@@ -29,8 +29,9 @@ use crate::{
     types::{LogLevel, LogMessage},
     utils::perform_handshake,
 };
+use common::net::AsyncStream;
 use std::sync::Arc;
-use tokio::{net::TcpStream, sync::Mutex};
+use tokio::sync::Mutex;
 
 /// Handles an incoming client connection.
 ///
@@ -66,8 +67,8 @@ use tokio::{net::TcpStream, sync::Mutex};
 /// [`TcpStream`]: tokio::net::TcpStream
 /// [`perform_handshake`]: crate::utils::perform_handshake
 /// [`LogMessage`]: crate::types::LogMessage
-pub async fn handle_client(stream: TcpStream) {
-    let (rd, wt) = stream.into_split();
+pub async fn handle_client(stream: Box<dyn AsyncStream>) {
+    let (rd, wt) = tokio::io::split(stream);
     let rd = Arc::new(Mutex::new(rd));
     let wt = Arc::new(Mutex::new(wt));
 

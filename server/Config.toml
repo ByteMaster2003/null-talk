@@ -1,2 +1,7 @@
 host = "0.0.0.0"
 port = 8080
+
+[tls]
+enabled = false
+cert_path = "/etc/letsencrypt/live/viveksahani.com/fullchain.pem"
+key_path = "/etc/letsencrypt/live/viveksahani.com/privkey.pem"

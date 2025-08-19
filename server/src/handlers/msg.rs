@@ -1,6 +1,5 @@
+use crate::data;
 use common::{net::Packet, types::Message, utils::net::write_packet};
-
-use crate::data::{self, CONVERSATIONS};
 
 /// Handle a group message
 /// Send the message to every active member of the group
@@ -35,7 +34,7 @@ pub async fn handle_group_message(packet: Packet, group_id: &str) {
 // Handle a direct message
 pub async fn handle_direct_message(packet: Packet, session_id: &str) {
     // Find the conversation
-    let dm = match CONVERSATIONS.lock().await.get(session_id) {
+    let dm = match data::CONVERSATIONS.lock().await.get(session_id) {
         Some(dm) => dm.clone(),
         None => return,
     };

@@ -2,6 +2,13 @@ use config::{Config, File};
 use serde::Deserialize;
 use std::{env, error::Error, path::PathBuf};
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct TLSConfig {
+    pub enabled: bool,
+    pub cert_path: Option<String>,
+    pub key_path: Option<String>,
+}
+
 /// Configuration for the server
 #[derive(Debug, Deserialize, Clone)]
 pub struct ServerConfig {
@@ -10,6 +17,9 @@ pub struct ServerConfig {
 
     /// Port number for the server  
     pub port: u16,
+
+    /// TLS configuration
+    pub tls: Option<TLSConfig>
 }
 
 impl ServerConfig {
