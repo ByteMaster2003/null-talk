@@ -26,12 +26,19 @@ chmod +x /usr/local/bin/null-talk-server
 
 ## Run server
 - for running server we would require one configuration file `/etc/null-talk/Config.toml`
+- we can also configure the server for TLS
+- if you don't need TLS then just comment out tls section
 ```
 # /etc/null-talk/Config.toml
-host = "0.0.0.0"
-port = 8080
+port = 8443
+
+# optional
+[tls]
+cert_path = "/etc/letsencrypt/live/example.com/fullchain.pem"
+key_path = "/etc/letsencrypt/live/example.com/privkey.pem"
+
 ```
 - run the server 
 ```
-$ null-talk-server
+$ sudo null-talk-server
 ```
