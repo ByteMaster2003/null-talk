@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     data::{CLIENTS, CONVERSATIONS, GROUPS},
     types::{DmChat, GroupChat},
@@ -75,10 +77,23 @@ async fn create_new_session(payload: Vec<u8>, client_id: String) -> ServerRespon
                         session_key = dm.session_key.clone();
                     }
                     None => {
+                        let mut members: HashMap<String, bool> = HashMap::new();
+                        members.insert(client_id.clone(), true);
+                        members.insert(new_session.id.clone(), true);
+
+                        for member in members.keys() {
+                            let mut guard = CLIENTS.lock().await;
+                            if let Some(client) = guard.get_mut(member) {
+                                if !client.dms.contains(&session_id) {
+                                    client.dms.push(session_id.clone());
+                                }
+                            }
+                        }
+
                         let dm_chat = DmChat {
                             dm_id: session_id.clone(),
                             session_key: session_key.clone(),
-                            members: (client_id.clone(), new_session.id.clone()),
+                            members,
                         };
 
                         conversations
@@ -101,7 +116,7 @@ async fn create_new_session(payload: Vec<u8>, client_id: String) -> ServerRespon
                 }
             };
 
-            if !group.members.contains(&client_id) {
+            if !group.members.contains_key(&client_id) {
                 response.success = false;
                 response.error = Some("You are not a member of this group".to_string());
 
@@ -110,6 +125,22 @@ async fn create_new_session(payload: Vec<u8>, client_id: String) -> ServerRespon
 
             let session_id = group.group_id.clone();
             let session_key = group.session_key.clone();
+
+            {
+                let mut guard = CLIENTS.lock().await;
+                if let Some(client) = guard.get_mut(&client_id) {
+                    if !client.groups.contains(&session_id) {
+                        client.groups.push(session_id.clone());
+                    }
+                }
+            }
+            {
+                let mut groups = GROUPS.lock().await;
+                if let Some(group) = groups.get_mut(&session_id) {
+                    group.members.insert(client_id.clone(), true);
+                }
+            }
+
             (session_id, session_key)
         }
     };
@@ -136,7 +167,7 @@ async fn create_new_group(payload: Vec<u8>, client_id: String) -> ServerResponse
         error: None,
     };
 
-    let mut members: Vec<String> = Vec::new();
+    let mut members: HashMap<String, bool> = HashMap::new();
 
     let (group_info, _): (NewGroupPayload, usize) =
         match bincode::decode_from_slice(&payload, bincode::config::standard()) {
@@ -149,10 +180,10 @@ async fn create_new_group(payload: Vec<u8>, client_id: String) -> ServerResponse
             }
         };
 
-    members.extend_from_slice(&group_info.members);
-    if !members.contains(&client_id) {
-        members.push(client_id.clone());
+    for member in &group_info.members {
+        members.insert(member.clone(), false);
     }
+    members.insert(client_id.clone(), true);
 
     let group_id = group_info
         .group_id
@@ -162,7 +193,7 @@ async fn create_new_group(payload: Vec<u8>, client_id: String) -> ServerResponse
         group_id: group_id.clone(),
         session_key: session_key.clone(),
         admin: client_id.clone(),
-        members,
+        members: members.clone(),
     };
 
     {
@@ -182,6 +213,15 @@ async fn create_new_group(payload: Vec<u8>, client_id: String) -> ServerResponse
             }
             None => {
                 groups.insert(group_id.clone(), new_group.clone());
+            }
+        }
+    }
+
+    for member in members.keys() {
+        let mut guard = CLIENTS.lock().await;
+        if let Some(client) = guard.get_mut(member) {
+            if !client.groups.contains(&group_id) {
+                client.groups.push(group_id.clone());
             }
         }
     }
@@ -231,18 +271,19 @@ async fn add_group_member(payload: Vec<u8>, client_id: String) -> ServerResponse
         return response;
     }
 
-    let member = match CLIENTS.lock().await.get(&data.member_id) {
-        Some(member) => member.clone(),
+    match CLIENTS.lock().await.get(&data.member_id).cloned() {
+        Some(mut member) => {
+            if !group.members.contains_key(&member.user_id) {
+                group.members.insert(member.user_id.clone(), true);
+            }
+            member.groups.push(group.group_id.clone());
+        }
         None => {
-            response.success = false;
-            response.error = Some("Member not found".to_string());
-            return response;
+            if !group.members.contains_key(&data.member_id) {
+                group.members.insert(data.member_id.clone(), false);
+            }
         }
     };
-
-    if !group.members.contains(&member.user_id) {
-        group.members.push(member.user_id.clone());
-    }
 
     response.payload = Some(
         bincode::encode_to_vec("Member Added successfully", bincode::config::standard()).unwrap(),

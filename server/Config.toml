@@ -1,5 +1,5 @@
 port = 8443
 
-[tls]
-cert_path = "/etc/letsencrypt/live/nulltalk.viveksahani.com/fullchain.pem"
-key_path = "/etc/letsencrypt/live/nulltalk.viveksahani.com/privkey.pem"
+# [tls]
+# cert_path = "/etc/letsencrypt/live/nulltalk.viveksahani.com/fullchain.pem"
+# key_path = "/etc/letsencrypt/live/nulltalk.viveksahani.com/privkey.pem"

@@ -18,7 +18,10 @@ pub async fn handle_group_message(packet: Packet, group_id: &str) {
         };
 
     // Broadcast the message to all clients in the group
-    for member_id in group.members {
+    for (member_id, is_active) in group.members {
+        if !is_active {
+            continue;
+        }
         if member_id == message.sender_id.clone() {
             continue;
         }
@@ -47,14 +50,13 @@ pub async fn handle_direct_message(packet: Packet, session_id: &str) {
         };
 
     // Find recipient
-    let member1 = dm.members.0;
-    let member2 = dm.members.1;
-    let recipient: String;
-
-    if message.sender_id.clone() == member1 {
-        recipient = member2;
-    } else {
-        recipient = member1;
+    let mut recipient = String::new();
+    for (member, _) in &dm.members {
+        if member == &message.sender_id {
+            continue;
+        } else {
+            recipient = member.clone();
+        }
     }
 
     // Check if client is online
