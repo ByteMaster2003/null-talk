@@ -4,7 +4,7 @@ use std::io;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct PacketHeader {
-    pub magic_byte: u8,
+    pub magic_byte: u8, // protocol indentifier
     pub version: u8,
     pub op_code: OpCode,
     pub payload_len: u32,
@@ -26,11 +26,10 @@ impl PacketHeader {
     }
 }
 
-/// Packet
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Packet {
-    pub header: PacketHeader, // 10 bytes
-    pub payload: Vec<u8>,     // variable bytes
+    pub header: PacketHeader,
+    pub payload: Vec<u8>,
 }
 
 impl Packet {
@@ -68,29 +67,5 @@ impl Packet {
     /// Helper for quick error packets
     pub fn error(message: &str) -> Self {
         Self::new(OpCode::Error, message.as_bytes().to_vec())
-    }
-}
-
-
-
-/// Login Payload
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct LoginPayload {
-    pub username: String,
-    pub public_key: String,
-}
-
-impl LoginPayload {
-    pub fn get_bytes(self) -> Vec<u8> {
-        bincode::serialize(&self).unwrap()
-    }
-
-    pub fn parse(src: &[u8]) -> Result<Self, io::Error> {
-        match bincode::deserialize::<Self>(src) {
-            Ok(msg) => return Ok(msg),
-            Err(e) => {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, e.to_string()));
-            }
-        };
     }
 }

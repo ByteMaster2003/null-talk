@@ -6,7 +6,7 @@ use lib::{
 use tokio::net::TcpStream;
 use tokio_util::codec::Framed;
 
-const LOGS: bool = true;
+const LOGS: bool = false;
 fn log(src: String) {
     if LOGS {
         println!("{src}")
@@ -21,7 +21,7 @@ pub async fn perform_handshake(
         Some(Ok(pkt)) => pkt,
         _ => return None,
     };
-    log(format!("[Handshake]: Login Packet Received"));
+    log(format!("[Handshake]: Login Packet Received\n"));
 
     if login_pkt.header.op_code != OpCode::Login {
         return None;
@@ -42,7 +42,7 @@ pub async fn perform_handshake(
     let _ = frames
         .send(Packet::new(OpCode::LoginAck, nonce.clone()))
         .await;
-    log(format!("[Handshake]: LoginAck Packet Sent"));
+    log(format!("[Handshake]: LoginAck Packet Sent\n"));
 
     log(format!("[Handshake]: Receiving Signature Packet"));
     let sig_pkt = match frames.next().await {
@@ -60,7 +60,7 @@ pub async fn perform_handshake(
     if !success {
         return None;
     }
-    log(format!("[Handshake]: Signature Verified"));
+    log(format!("[Handshake]: Signature Verified\n"));
 
     log(format!("[Handshake]: Sending SignatureAck Packet"));
     let _ = frames
@@ -69,7 +69,7 @@ pub async fn perform_handshake(
             crypto::encrypt_bytes(&public_key, &session_key),
         ))
         .await;
-    log(format!("[Handshake]: SignatureAck Packet Sent"));
+    log(format!("[Handshake]: SignatureAck Packet Sent\n"));
 
     Some((session_key, username, pub_key))
 }

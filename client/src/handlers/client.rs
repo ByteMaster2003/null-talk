@@ -1,7 +1,7 @@
 use futures::{SinkExt, StreamExt};
 use lib::{
     crypto,
-    protocol::{self, Message, Packet, PacketCodec},
+    protocol::{MessagePayload, OpCode, Packet, PacketCodec},
     types::ConnectionConfig,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -41,7 +41,7 @@ pub async fn handle_client(stream: TcpStream, config: &ConnectionConfig) {
                 Ok(input) => {
                     let (receiver_id, msg) = input.split_once(":").unwrap();
 
-                    let message = Message {
+                    let message = MessagePayload {
                         sender_id: user_id_clone.clone(),
                         content: msg.to_string(),
                         username: config_clone.username.clone(),
@@ -55,7 +55,7 @@ pub async fn handle_client(stream: TcpStream, config: &ConnectionConfig) {
                     let encrypted_msg = crypto::encrypt_aes(&session_key_clone, &message).unwrap();
                     let _ = sink
                         .send(Packet::new_msg(
-                            protocol::OpCode::DirectMsg,
+                            OpCode::DirectMsg,
                             encrypted_msg,
                             receiver_id.to_string(),
                         ))
@@ -72,7 +72,7 @@ pub async fn handle_client(stream: TcpStream, config: &ConnectionConfig) {
                 lib::protocol::OpCode::DirectMsg => {
                     match crypto::decrypt_aes(&session_key, &pkt.payload) {
                         Ok(msg) => {
-                            if let Ok(message) = protocol::Message::parse(&msg) {
+                            if let Ok(message) = MessagePayload::parse(&msg) {
                                 println!("[{}]: {}", message.username, message.content);
                             }
                         }
