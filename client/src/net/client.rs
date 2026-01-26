@@ -1,19 +1,17 @@
+use crate::{data, net::perform_handshake, utils::types::AsyncStream};
 use futures::{SinkExt, StreamExt};
 use lib::{
     crypto,
-    protocol::{MessagePayload, OpCode, Packet, PacketCodec},
-    types::ConnectionConfig,
+    protocol::{self, MessagePayload, OpCode, Packet, PacketCodec},
 };
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, LinesCodec};
 
-use crate::handlers::perform_handshake;
-
-pub async fn handle_client(stream: TcpStream, config: &ConnectionConfig) {
+pub async fn handle_client(stream: Box<dyn AsyncStream>) {
+    let config = data::CLIENT.get().unwrap().clone();
     let mut frames = Framed::new(stream, PacketCodec);
 
-    let session_key = match perform_handshake(&mut frames, config).await {
+    let session_key = match perform_handshake(&mut frames, &config).await {
         Some(key) => key,
         None => panic!("Something went wrong"),
     };
@@ -39,7 +37,7 @@ pub async fn handle_client(stream: TcpStream, config: &ConnectionConfig) {
         while let Some(result) = io_reader.next().await {
             match result {
                 Ok(input) => {
-                    let (receiver_id, msg) = input.split_once(":").unwrap();
+                    let (_id, msg) = input.split_once(":").unwrap();
 
                     let message = MessagePayload {
                         sender_id: user_id_clone.clone(),
@@ -49,16 +47,12 @@ pub async fn handle_client(stream: TcpStream, config: &ConnectionConfig) {
                             .duration_since(UNIX_EPOCH)
                             .unwrap()
                             .as_millis(),
-                    }
-                    .to_bytes();
+                    };
+                    let message = protocol::to_bytes(&message);
 
                     let encrypted_msg = crypto::encrypt_aes(&session_key_clone, &message).unwrap();
                     let _ = sink
-                        .send(Packet::new_msg(
-                            OpCode::DirectMsg,
-                            encrypted_msg,
-                            receiver_id.to_string(),
-                        ))
+                        .send(Packet::new(OpCode::DirectMsg, encrypted_msg))
                         .await;
                 }
                 Err(_) => break,
@@ -72,7 +66,7 @@ pub async fn handle_client(stream: TcpStream, config: &ConnectionConfig) {
                 lib::protocol::OpCode::DirectMsg => {
                     match crypto::decrypt_aes(&session_key, &pkt.payload) {
                         Ok(msg) => {
-                            if let Ok(message) = MessagePayload::parse(&msg) {
+                            if let Ok(message) = protocol::parse::<MessagePayload>(&msg) {
                                 println!("[{}]: {}", message.username, message.content);
                             }
                         }

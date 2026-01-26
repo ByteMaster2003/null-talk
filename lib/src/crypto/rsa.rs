@@ -76,18 +76,21 @@ pub fn public_key_to_user_id(pub_key: &RsaPublicKey) -> String {
 
 /// Sign bytes with Private Key
 pub fn sign_bytes(priv_key: &RsaPrivateKey, data: &[u8]) -> Vec<u8> {
+    let hashed_data = hash_bytes(&data);
     let signing_key = SigningKey::<Sha256>::new(priv_key.clone());
-    signing_key.sign(data).to_vec()
+    signing_key.sign(&hashed_data).to_vec()
 }
 
 /// Verify signature with Public Key
-pub fn verify_signature(pub_key: &RsaPublicKey, nonce: &[u8], signature_bytes: &[u8]) -> bool {
+pub fn verify_signature(pub_key: &RsaPublicKey, data: &[u8], signature_bytes: &[u8]) -> bool {
     let verifying_key = VerifyingKey::<Sha256>::new(pub_key.clone());
     let signature = match Signature::try_from(signature_bytes) {
         Ok(s) => s,
         Err(_) => return false,
     };
-    verifying_key.verify(nonce, &signature).is_ok()
+
+    let hashed_data = hash_bytes(&data);
+    verifying_key.verify(&hashed_data, &signature).is_ok()
 }
 
 /// Encrypt bytes (session key) with Public Key
@@ -115,6 +118,14 @@ pub fn hash_string(input: &str) -> String {
 
     let result = hasher.finalize();
     hex::encode(result)
+}
+
+pub fn hash_bytes(input: &[u8]) -> Vec<u8> {
+    let mut hasher = <Sha256 as Digest>::new();
+    hasher.update(input);
+
+    let result = hasher.finalize();
+    result.to_vec()
 }
 
 pub fn generate_session_data() -> (Vec<u8>, Vec<u8>) {

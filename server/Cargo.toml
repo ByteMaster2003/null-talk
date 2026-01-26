@@ -8,4 +8,10 @@ tokio.workspace = true
 tokio-util.workspace = true
 dashmap.workspace = true
 futures.workspace = true
+clap.workspace = true
+rustls.workspace = true
+tokio-rustls.workspace = true
+
+rustls-pemfile = "2.2.0"
+
 lib = { path = "../lib" }

@@ -1,9 +1,9 @@
+use crate::utils::types::AsyncStream;
 use futures::{SinkExt, StreamExt};
 use lib::{
     crypto,
-    protocol::{LoginPayload, OpCode, Packet, PacketCodec},
+    protocol::{LoginPayload, OpCode, Packet, PacketCodec, parse},
 };
-use tokio::net::TcpStream;
 use tokio_util::codec::Framed;
 
 const LOGS: bool = false;
@@ -14,7 +14,7 @@ fn log(src: String) {
 }
 
 pub async fn perform_handshake(
-    frames: &mut Framed<TcpStream, PacketCodec>,
+    frames: &mut Framed<Box<dyn AsyncStream>, PacketCodec>,
 ) -> Option<(Vec<u8>, String, String)> {
     log(format!("[Handshake]: Receiving Login Packet"));
     let login_pkt = match frames.next().await {
@@ -27,7 +27,7 @@ pub async fn perform_handshake(
         return None;
     }
 
-    let (username, pub_key) = match LoginPayload::parse(&login_pkt.payload) {
+    let (username, pub_key) = match parse::<LoginPayload>(&login_pkt.payload) {
         Ok(k) => (k.username, k.public_key),
         _ => return None,
     };

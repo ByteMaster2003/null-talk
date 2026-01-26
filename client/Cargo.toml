@@ -7,4 +7,10 @@ edition = "2024"
 tokio.workspace = true
 tokio-util.workspace = true
 futures.workspace = true
+clap.workspace = true
+
 lib = { path = "../lib" }
+
+rustls.workspace = true
+tokio-rustls.workspace = true
+webpki-roots = "1.0.5"

@@ -1,13 +1,12 @@
+use crate::utils::types::{AsyncStream, ConnectionConfig};
 use futures::{SinkExt, StreamExt};
 use lib::{
     crypto,
-    protocol::{LoginPayload, OpCode, Packet, PacketCodec},
-    types::ConnectionConfig,
+    protocol::{self, LoginPayload, OpCode, Packet, PacketCodec},
 };
-use tokio::net::TcpStream;
 use tokio_util::codec::Framed;
 
-const LOGS: bool = true;
+const LOGS: bool = false;
 fn log(src: String) {
     if LOGS {
         println!("{src}")
@@ -15,19 +14,16 @@ fn log(src: String) {
 }
 
 pub async fn perform_handshake(
-    frames: &mut Framed<TcpStream, PacketCodec>,
+    frames: &mut Framed<Box<dyn AsyncStream>, PacketCodec>,
     config: &ConnectionConfig,
 ) -> Option<Vec<u8>> {
     log(format!("[Handshake]: Sending Login Packet"));
+    let payload = LoginPayload {
+        username: config.username.clone(),
+        public_key: config.public_key_str.clone(),
+    };
     let _ = frames
-        .send(Packet::new(
-            OpCode::Login,
-            LoginPayload {
-                username: config.username.clone(),
-                public_key: config.public_key_str.clone(),
-            }
-            .get_bytes(),
-        ))
+        .send(Packet::new(OpCode::Login, protocol::to_bytes(&payload)))
         .await;
     log(format!("[Handshake]: Login Packet Sent"));
 

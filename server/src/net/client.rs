@@ -1,16 +1,17 @@
 use crate::{
     data::{Client, PeerMap},
-    handlers::perform_handshake,
+    net::perform_handshake,
+    utils::types::AsyncStream,
 };
 use futures::{SinkExt, StreamExt};
 use lib::{
     crypto,
     protocol::{OpCode, Packet, PacketCodec},
 };
-use tokio::{net::TcpStream, sync::mpsc};
+use tokio::sync::mpsc;
 use tokio_util::codec::Framed;
 
-pub async fn handle_client(stream: TcpStream, peers: PeerMap) {
+pub async fn handle_client(stream: Box<dyn AsyncStream>, peers: PeerMap) {
     // step 1: create lines frame fram tokio_util
     let mut frames = Framed::new(stream, PacketCodec);
 
@@ -54,11 +55,11 @@ pub async fn handle_client(stream: TcpStream, peers: PeerMap) {
         match result {
             Ok(pkt) => {
                 if pkt.header.op_code == OpCode::DirectMsg {
-                    if let Some(id) = pkt.header.id.clone() {
-                        if let Some(receiver) = peers.get(&id) {
-                            let _ = receiver.tx.send(pkt).await;
-                        }
-                    }
+                    // if let Some(id) = pkt.header.id.clone() {
+                    //     if let Some(receiver) = peers.get(&id) {
+                    //         let _ = receiver.tx.send(pkt).await;
+                    //     }
+                    // }
                 }
             }
             _ => break, // It means client disconneted

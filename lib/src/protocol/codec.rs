@@ -1,4 +1,4 @@
-use crate::protocol::{Packet, PacketHeader};
+use crate::protocol::{Packet, PacketHeader, parse, to_bytes};
 use std::io;
 use tokio_util::{
     bytes::{Buf, BytesMut},
@@ -24,7 +24,7 @@ impl Decoder for PacketCodec {
             return Ok(None);
         }
         let header_bytes = &src[1..header_size];
-        let header = PacketHeader::parse(&header_bytes)?;
+        let header: PacketHeader = parse(&header_bytes)?;
 
         if header.magic_byte != 0x44 {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid Packet"));
@@ -51,7 +51,7 @@ impl Encoder<Packet> for PacketCodec {
     type Error = io::Error;
 
     fn encode(&mut self, item: Packet, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        let header_bytes = item.header.to_bytes();
+        let header_bytes = to_bytes(&item.header);
         let payload_bytes = item.payload;
 
         dst.extend([header_bytes.len() as u8]); // 1 byte
