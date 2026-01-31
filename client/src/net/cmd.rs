@@ -71,7 +71,7 @@ pub async fn process_command(cmd: &str, app: &mut MutexGuard<'_, AppState>) {
                     let _ = LogMessage::log(
                         LogLevel::INFO,
                         format!("New session created successfully: {}", &session.id[..8]),
-                        0,
+                        5,
                     )
                     .await;
                 }
@@ -88,7 +88,7 @@ pub async fn process_command(cmd: &str, app: &mut MutexGuard<'_, AppState>) {
             .await;
         }
         cmd => {
-            let _ = LogMessage::log(LogLevel::ERROR, format!("Unknown command: {}", cmd), 0).await;
+            let _ = LogMessage::log(LogLevel::ERROR, format!("Unknown command: {}", cmd), 5).await;
         }
     }
 }

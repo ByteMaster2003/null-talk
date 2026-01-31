@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use lib::{
     crypto,
     protocol::{self, DMessage, DmHandshakePayload, DmHandshakeStage, OpCode, Packet, parse},
@@ -6,6 +8,9 @@ use lib::{
 use crate::data::{self, Client};
 
 pub async fn handshake(pkt: Packet, user_id: String) {
+    let current_time = get_timestamps();
+    let drift_allowance = 10; // 10 seconds
+
     let client = {
         match data::CLIENTS.get(&user_id) {
             Some(c) => c.value().clone(),
@@ -23,10 +28,23 @@ pub async fn handshake(pkt: Packet, user_id: String) {
         _ => return,
     };
 
+    if (current_time).abs_diff(data.timestamps) > drift_allowance {
+        error(
+            data,
+            client,
+            "Message expired or potential replay attack detected".to_string(),
+        )
+        .await;
+        return;
+    }
+
     let recv_client = {
         match data::CLIENTS.get(&data.user_id.clone()) {
             Some(c) => c.value().clone(),
-            _ => return,
+            None => {
+                error(data, client, "Client is not connected!".to_string()).await;
+                return;
+            }
         }
     };
 
@@ -36,6 +54,28 @@ pub async fn handshake(pkt: Packet, user_id: String) {
         DmHandshakeStage::Success => success(data, client, recv_client).await,
         _ => (),
     }
+}
+
+async fn error(data: DmHandshakePayload, client: Client, message: String) {
+    let payload = DmHandshakePayload {
+        stage: DmHandshakeStage::Error,
+        dm_id: data.dm_id.clone(),
+        user_id: client.user_id,
+
+        username: None,
+        public_key: None,
+        signature: vec![],
+        dm_key: vec![],
+        error: Some(message),
+        timestamps: get_timestamps(),
+    };
+    let bytes = protocol::to_bytes::<DmHandshakePayload>(&payload);
+    let enc_payload = match crypto::encrypt_aes(&client.session_key, &bytes) {
+        Ok(p) => p,
+        _ => return,
+    };
+    let pkt = Packet::new(OpCode::DmHandshake, enc_payload);
+    let _ = client.tx.send(pkt).await;
 }
 
 async fn request(data: DmHandshakePayload, client: Client, target_client: Client) {
@@ -48,6 +88,8 @@ async fn request(data: DmHandshakePayload, client: Client, target_client: Client
         public_key: Some(target_client.public_key),
         signature: vec![],
         dm_key: vec![],
+        error: None,
+        timestamps: get_timestamps(),
     };
     let bytes = protocol::to_bytes::<DmHandshakePayload>(&payload);
     let enc_payload = match crypto::encrypt_aes(&client.session_key, &bytes) {
@@ -68,6 +110,8 @@ async fn session(data: DmHandshakePayload, client: Client, recv_client: Client) 
 
         public_key: Some(client.public_key),
         username: Some(client.username),
+        error: None,
+        timestamps: get_timestamps(),
     };
     let bytes = protocol::to_bytes::<DmHandshakePayload>(&payload);
     let enc_payload = match crypto::encrypt_aes(&recv_client.session_key, &bytes) {
@@ -88,6 +132,8 @@ async fn success(data: DmHandshakePayload, client: Client, recv_client: Client) 
         public_key: None,
         signature: vec![],
         dm_key: vec![],
+        error: None,
+        timestamps: get_timestamps(),
     };
     let bytes = protocol::to_bytes::<DmHandshakePayload>(&payload);
     let enc_payload = match crypto::encrypt_aes(&recv_client.session_key, &bytes) {
@@ -116,21 +162,41 @@ pub async fn direct_msg(pkt: Packet, user_id: String) {
         _ => return,
     };
 
-    let recv_client = {
-        match data::CLIENTS.get(&data.user_id.clone()) {
-            Some(c) => c.value().clone(),
+    if let Some(recv_client) = data::CLIENTS.get(&data.user_id.clone()) {
+        let bytes = protocol::to_bytes::<DMessage>(&data);
+        let payload = match crypto::encrypt_aes(&recv_client.session_key, &bytes) {
+            Ok(p) => p,
             _ => return,
-        }
-    };
+        };
+        let pkt = Packet {
+            header: pkt.header,
+            payload,
+        };
+        let _ = recv_client.tx.send(pkt).await;
+    } else {
+        let msg = DMessage {
+            content: Vec::new(),
+            id: data.id,
+            user_id: user_id.clone(),
+            error: Some(format!("Client is not connected!")),
+            timestamps: data.timestamps,
+        };
+        let bytes = protocol::to_bytes::<DMessage>(&msg);
+        let payload = match crypto::encrypt_aes(&client.session_key, &bytes) {
+            Ok(p) => p,
+            _ => return,
+        };
+        let pkt = Packet {
+            header: pkt.header,
+            payload,
+        };
+        let _ = client.tx.send(pkt).await;
+    }
+}
 
-    let bytes = protocol::to_bytes::<DMessage>(&data);
-    let enc_payload = match crypto::encrypt_aes(&recv_client.session_key, &bytes) {
-        Ok(p) => p,
-        _ => return,
-    };
-    let pkt = Packet {
-        header: pkt.header,
-        payload: enc_payload,
-    };
-    let _ = recv_client.tx.send(pkt).await;
+fn get_timestamps() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis()
 }

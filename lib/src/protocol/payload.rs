@@ -24,6 +24,8 @@ pub enum DmHandshakeStage {
 
     Success,
     SuccessAck,
+
+    Error,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -37,6 +39,9 @@ pub struct DmHandshakePayload {
 
     pub dm_key: Vec<u8>,
     pub signature: Vec<u8>,
+
+    pub timestamps: u128,
+    pub error: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -44,5 +49,7 @@ pub struct DMessage {
     pub id: String,
     pub user_id: String,
     pub content: Vec<u8>,
+
+    pub error: Option<String>,
     pub timestamps: u128,
 }

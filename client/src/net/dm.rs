@@ -51,6 +51,8 @@ pub async fn new_dm(user_id: String) -> Option<Session> {
         public_key: None,
         dm_key: vec![],
         signature: vec![],
+        error: None,
+        timestamps: get_timestamps(),
     };
     let payload_bytes = protocol::to_bytes::<DmHandshakePayload>(&payload);
     let enc_payload = match crypto::encrypt_aes(&client_session_key, &payload_bytes) {
@@ -79,14 +81,14 @@ pub async fn handshake(pkt: Packet) {
     let dec_bytes = match crypto::decrypt_aes(&client_session_key, &enc_bytes) {
         Ok(bytes) => bytes,
         Err(e) => {
-            let _ = LogMessage::log(LogLevel::ERROR, e.to_string(), 0).await;
+            let _ = LogMessage::log(LogLevel::ERROR, e.to_string(), 5).await;
             return;
         }
     };
     let handshake_data = match protocol::parse::<DmHandshakePayload>(&dec_bytes) {
         Ok(data) => data,
         Err(e) => {
-            let _ = LogMessage::log(LogLevel::ERROR, e.to_string(), 0).await;
+            let _ = LogMessage::log(LogLevel::ERROR, e.to_string(), 5).await;
             return;
         }
     };
@@ -95,6 +97,12 @@ pub async fn handshake(pkt: Packet) {
         DmHandshakeStage::RequestAck => request_ack(handshake_data).await,
         DmHandshakeStage::SessionAck => session_ack(handshake_data).await,
         DmHandshakeStage::SuccessAck => success_ack(handshake_data).await,
+        DmHandshakeStage::Error => {
+            let err_message = handshake_data
+                .error
+                .unwrap_or("Something went wrong! Please try again".to_string());
+            let _ = LogMessage::log(LogLevel::ERROR, err_message, 0).await;
+        }
         _ => (),
     }
 }
@@ -146,6 +154,8 @@ async fn request_ack(data: DmHandshakePayload) {
 
         public_key: None,
         username: None,
+        error: None,
+        timestamps: get_timestamps(),
     };
     let bytes = protocol::to_bytes::<DmHandshakePayload>(&payload);
     let enc_payload = match crypto::encrypt_aes(&client_session_key, &bytes) {
@@ -212,6 +222,8 @@ async fn session_ack(data: DmHandshakePayload) {
         public_key: None,
         signature: vec![],
         dm_key: vec![],
+        error: None,
+        timestamps: get_timestamps(),
     };
     let bytes = protocol::to_bytes::<DmHandshakePayload>(&payload);
     let enc_payload = match crypto::encrypt_aes(&client_session_key, &bytes) {
@@ -255,6 +267,11 @@ pub async fn direct_msg(pkt: Packet) {
         _ => return,
     };
 
+    if let Some(error) = message.error {
+        let _ = LogMessage::log(LogLevel::ERROR, error, 5).await;
+        return;
+    };
+
     let dm_id = message.id;
     let dm_session = match data::SESSIONS.get(&dm_id) {
         Some(s) => s.clone(),
@@ -282,6 +299,7 @@ pub async fn direct_msg(pkt: Packet) {
 }
 
 pub async fn send_dm(msg: String, session: String) {
+    let config = data::CLIENT.get().unwrap();
     let client_session_key = data::SESSION_KEY.get().unwrap().clone();
     let dm_session = match data::SESSIONS.get(&session) {
         Some(s) => s.clone(),
@@ -290,6 +308,17 @@ pub async fn send_dm(msg: String, session: String) {
             return;
         }
     };
+
+    let timestamps = get_timestamps();
+    if let Some(mut mgs) = data::MESSAGES.get_mut(&session) {
+        mgs.push(Message {
+            id: session.clone(),
+            user_id: config.user_id.clone(),
+            username: config.username.clone(),
+            content: msg.clone(),
+            timestamps: timestamps.clone(),
+        });
+    }
 
     // Encrypt the message content with dm-key
     let msg_content = protocol::to_bytes::<String>(&msg);
@@ -306,10 +335,8 @@ pub async fn send_dm(msg: String, session: String) {
         id: session.clone(),
         user_id: dm_session.user_id.clone().unwrap(),
         content: enc_bytes,
-        timestamps: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis(),
+        timestamps,
+        error: None,
     };
 
     // Encrypt the payload with client session key
@@ -325,4 +352,11 @@ pub async fn send_dm(msg: String, session: String) {
     // Send the packet
     let pkt = Packet::new(OpCode::DirectMsg, enc_payload);
     let _ = data::CHANNELS.get().unwrap().pkt_tx.send(pkt).await;
+}
+
+fn get_timestamps() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis()
 }

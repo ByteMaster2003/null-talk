@@ -66,4 +66,6 @@ pub async fn handle_client(stream: Box<dyn AsyncStream>) {
     }
 
     writer_task.abort();
+    data::CLIENTS.remove(&user_id);
+    println!("Client Disconnected: {}", username);
 }

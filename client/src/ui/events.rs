@@ -151,9 +151,6 @@ async fn handle_insert_cmd_mode(
                         if input == "q" {
                             let _ = shutdown_tx.send(true);
                         } else {
-                            // tokio::select! {
-                            //     () = process_command(&input) => {},
-                            // }
                             process_command(&input, &mut app).await;
                         }
                     }
