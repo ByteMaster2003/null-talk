@@ -9,9 +9,12 @@ pub enum OpCode {
     Signature = 0x03,
     SignatureAck = 0x04,
 
+    // DM Handshake
+    DmHandshake = 0x10,
+
     // --- Messaging ---
-    DirectMsg = 0x10, // Payload: {TargetUserID, IV, EncryptedBytes}
-    GroupMsg = 0x11,  // Payload: {GroupID, IV, EncryptedBytes}
+    DirectMsg = 0x16, // Payload: {TargetUserID, IV, EncryptedBytes}
+    GroupMsg = 0x17,  // Payload: {GroupID, IV, EncryptedBytes}
 
     // --- Group Management ---
     CreateGroup = 0x20,    // Payload: {List<UserID>}

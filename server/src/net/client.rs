@@ -1,6 +1,6 @@
 use crate::{
-    data::{Client, PeerMap},
-    net::perform_handshake,
+    data::{self, Client},
+    net::{dm, perform_handshake},
     utils::types::AsyncStream,
 };
 use futures::{SinkExt, StreamExt};
@@ -11,7 +11,7 @@ use lib::{
 use tokio::sync::mpsc;
 use tokio_util::codec::Framed;
 
-pub async fn handle_client(stream: Box<dyn AsyncStream>, peers: PeerMap) {
+pub async fn handle_client(stream: Box<dyn AsyncStream>) {
     // step 1: create lines frame fram tokio_util
     let mut frames = Framed::new(stream, PacketCodec);
 
@@ -26,24 +26,27 @@ pub async fn handle_client(stream: Box<dyn AsyncStream>, peers: PeerMap) {
     let (tx, mut rx) = mpsc::channel::<Packet>(100);
 
     // step 4: register the user in Dash map
-    peers.insert(
-        user_id.clone(),
-        Client {
-            session_key: session_key,
-            tx,
-            user_id,
-            username,
-            public_key: pub_key,
-        },
-    );
+    {
+        data::CLIENTS.insert(
+            user_id.clone(),
+            Client {
+                session_key: session_key,
+                tx,
+                user_id: user_id.clone(),
+                username: username.clone(),
+                public_key: pub_key,
+            },
+        );
+    }
+    println!("New Client: {}", username);
 
     let (mut sink, mut stream) = frames.split();
 
     // Task A writer task
     // read the message from channel and forward it to the client
     let writer_task = tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            if let Err(_) = sink.send(msg).await {
+        while let Some(pkt) = rx.recv().await {
+            if let Err(_) = sink.send(pkt).await {
                 break; // client is probalby disconnected
             }
         }
@@ -53,17 +56,13 @@ pub async fn handle_client(stream: Box<dyn AsyncStream>, peers: PeerMap) {
     // wait for the clients message and forward the message to the receivers channel
     while let Some(result) = stream.next().await {
         match result {
-            Ok(pkt) => {
-                if pkt.header.op_code == OpCode::DirectMsg {
-                    // if let Some(id) = pkt.header.id.clone() {
-                    //     if let Some(receiver) = peers.get(&id) {
-                    //         let _ = receiver.tx.send(pkt).await;
-                    //     }
-                    // }
-                }
-            }
-            _ => break, // It means client disconneted
-        };
+            Ok(pkt) => match pkt.header.op_code {
+                OpCode::DmHandshake => dm::handshake(pkt, user_id.clone()).await,
+                OpCode::DirectMsg => dm::direct_msg(pkt, user_id.clone()).await,
+                _ => (),
+            },
+            _ => break,
+        }
     }
 
     writer_task.abort();

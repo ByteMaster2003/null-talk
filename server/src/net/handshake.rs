@@ -2,7 +2,7 @@ use crate::utils::types::AsyncStream;
 use futures::{SinkExt, StreamExt};
 use lib::{
     crypto,
-    protocol::{LoginPayload, OpCode, Packet, PacketCodec, parse},
+    protocol::{HandshakePayload, OpCode, Packet, PacketCodec, parse},
 };
 use tokio_util::codec::Framed;
 
@@ -27,7 +27,7 @@ pub async fn perform_handshake(
         return None;
     }
 
-    let (username, pub_key) = match parse::<LoginPayload>(&login_pkt.payload) {
+    let (username, pub_key) = match parse::<HandshakePayload>(&login_pkt.payload) {
         Ok(k) => (k.username, k.public_key),
         _ => return None,
     };

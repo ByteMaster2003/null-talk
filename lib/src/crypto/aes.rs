@@ -4,12 +4,11 @@ use aes_gcm::{
 };
 use rsa::rand_core::{OsRng, RngCore};
 
+type CryptoError = Box<dyn std::error::Error + Send + Sync>;
+
 /// Encrypts message bytes using AES-256-GCM.
 /// Returns a Vec containing: [12 bytes of Nonce] + [Ciphertext]
-pub fn encrypt_aes(
-    session_key: &[u8],
-    message: &[u8],
-) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub fn encrypt_aes(session_key: &[u8], message: &[u8]) -> Result<Vec<u8>, CryptoError> {
     // 1. 32 bytes for AES-256
     let key = Key::<Aes256Gcm>::from_slice(session_key);
     let cipher = Aes256Gcm::new_from_slice(&key)?;
@@ -33,10 +32,7 @@ pub fn encrypt_aes(
 
 /// Decrypts message bytes using AES-256-GCM.
 /// Expects data to be in format: [12 bytes Nonce][Ciphertext]
-pub fn decrypt_aes(
-    session_key: &[u8],
-    encrypted_data: &[u8],
-) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub fn decrypt_aes(session_key: &[u8], encrypted_data: &[u8]) -> Result<Vec<u8>, CryptoError> {
     if encrypted_data.len() < 12 {
         return Err("Ciphertext too short (missing nonce)".into());
     }

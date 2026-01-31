@@ -1,13 +1,18 @@
-use crate::{data, net::perform_handshake, utils::types::AsyncStream};
-use futures::{SinkExt, StreamExt};
-use lib::{
-    crypto,
-    protocol::{self, MessagePayload, OpCode, Packet, PacketCodec},
+use crate::{
+    data,
+    net::{dm, perform_handshake},
+    types::{LogLevel, LogMessage},
+    utils::types::AsyncStream,
 };
-use std::time::{SystemTime, UNIX_EPOCH};
-use tokio_util::codec::{Framed, LinesCodec};
+use futures::{
+    SinkExt, StreamExt,
+    stream::{SplitSink, SplitStream},
+};
+use lib::protocol::{OpCode, Packet, PacketCodec};
+use tokio::sync::mpsc;
+use tokio_util::codec::Framed;
 
-pub async fn handle_client(stream: Box<dyn AsyncStream>) {
+pub async fn handle_client(stream: Box<dyn AsyncStream>, pkt_rx: mpsc::Receiver<Packet>) {
     let config = data::CLIENT.get().unwrap().clone();
     let mut frames = Framed::new(stream, PacketCodec);
 
@@ -15,70 +20,68 @@ pub async fn handle_client(stream: Box<dyn AsyncStream>) {
         Some(key) => key,
         None => panic!("Something went wrong"),
     };
+    let _ = data::SESSION_KEY.set(session_key.clone());
 
-    let user_id = crypto::public_key_to_user_id(&config.public_key);
+    // Split the TCP stream
+    let (sink, stream) = frames.split();
 
-    println!("Connected Successfully");
-    println!("UserId: {}", user_id.clone());
-    println!();
-    println!("===================================================================");
-    println!("===================================================================");
-    println!("\n\n");
-
-    let (mut sink, mut stream) = frames.split();
-
-    let session_key_clone = session_key.clone();
-    let config_clone = config.clone();
-    let user_id_clone = user_id.clone();
-
-    let writer_task = tokio::spawn(async move {
-        let mut io_reader = Framed::new(tokio::io::stdin(), LinesCodec::new());
-
-        while let Some(result) = io_reader.next().await {
-            match result {
-                Ok(input) => {
-                    let (_id, msg) = input.split_once(":").unwrap();
-
-                    let message = MessagePayload {
-                        sender_id: user_id_clone.clone(),
-                        content: msg.to_string(),
-                        username: config_clone.username.clone(),
-                        timestamps: SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap()
-                            .as_millis(),
-                    };
-                    let message = protocol::to_bytes(&message);
-
-                    let encrypted_msg = crypto::encrypt_aes(&session_key_clone, &message).unwrap();
-                    let _ = sink
-                        .send(Packet::new(OpCode::DirectMsg, encrypted_msg))
-                        .await;
-                }
-                Err(_) => break,
-            }
-        }
+    // Start writer task
+    tokio::spawn(async move {
+        let _ = writer_task(sink, pkt_rx).await;
     });
 
-    while let Some(result) = stream.next().await {
-        match result {
-            Ok(pkt) => match pkt.header.op_code {
-                lib::protocol::OpCode::DirectMsg => {
-                    match crypto::decrypt_aes(&session_key, &pkt.payload) {
-                        Ok(msg) => {
-                            if let Ok(message) = protocol::parse::<MessagePayload>(&msg) {
-                                println!("[{}]: {}", message.username, message.content);
-                            }
-                        }
-                        Err(e) => println!("Error: {}", e),
-                    };
-                }
-                _ => println!("Operation Type: {:?}", &pkt.header.op_code),
+    // Start reader task
+    let _ = tokio::spawn(async move {
+        reader_task(stream).await;
+    })
+    .await;
+}
+
+async fn writer_task(
+    mut sink: SplitSink<Framed<Box<dyn AsyncStream>, PacketCodec>, Packet>,
+    mut pkt_rx: mpsc::Receiver<Packet>,
+) {
+    let mut shutdown_rx = {
+        let channels = data::CHANNELS.get().unwrap();
+        channels.shutdown_tx.subscribe()
+    };
+
+    loop {
+        tokio::select! {
+            _ = shutdown_rx.recv() => {
+                break
+            }
+            Some(packet) = pkt_rx.recv() => {
+                let _ = sink.send(packet).await;
             },
-            Err(_) => break,
         }
     }
+}
 
-    writer_task.abort();
-    println!("Disconnected")
+async fn reader_task(mut stream: SplitStream<Framed<Box<dyn AsyncStream>, PacketCodec>>) {
+    let mut shutdown_rx = data::CHANNELS.get().unwrap().shutdown_tx.subscribe();
+
+    loop {
+        tokio::select! {
+            // Biased to check shutdown first
+            _ = shutdown_rx.recv() => {
+                break;
+            }
+            result = stream.next() => {
+                match result {
+                    Some(Ok(pkt)) => {
+                        match pkt.header.op_code {
+                            OpCode::DmHandshake => dm::handshake(pkt).await,
+                            OpCode::DirectMsg => dm::direct_msg(pkt).await,
+                            _ => (),
+                        }
+                    }
+                    Some(Err(e)) => {
+                        let _ = LogMessage::log(LogLevel::ERROR, e.to_string(), 0);
+                    }
+                    None => break, // Stream closed
+                }
+            }
+        }
+    }
 }

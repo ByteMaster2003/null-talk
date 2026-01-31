@@ -9,8 +9,10 @@ use rsa::{
 use ssh_key::{PrivateKey, PublicKey};
 use std::{fs, path::Path};
 
+type CryptoError = Box<dyn std::error::Error + Send + Sync>;
+
 /// Parse Private Key (with optional Passphrase support)
-pub fn parse_private_key(path: &Path) -> Result<RsaPrivateKey, Box<dyn std::error::Error>> {
+pub fn parse_private_key(path: &Path) -> Result<RsaPrivateKey, CryptoError> {
     let content = fs::read_to_string(path)?;
     let mut ssh_sk = PrivateKey::from_openssh(&content)?;
 
@@ -40,7 +42,7 @@ pub fn parse_private_key(path: &Path) -> Result<RsaPrivateKey, Box<dyn std::erro
 }
 
 /// Parse Public Key from file
-pub fn parse_public_key(path: &Path) -> Result<(RsaPublicKey, String), Box<dyn std::error::Error>> {
+pub fn parse_public_key(path: &Path) -> Result<(RsaPublicKey, String), CryptoError> {
     let content = fs::read_to_string(path)?;
     let public_key = parse_public_key_from_str(content.clone())?;
 
@@ -49,7 +51,7 @@ pub fn parse_public_key(path: &Path) -> Result<(RsaPublicKey, String), Box<dyn s
 
 pub fn parse_public_key_from_str(
     content: String,
-) -> Result<RsaPublicKey, Box<dyn std::error::Error>> {
+) -> Result<RsaPublicKey, CryptoError> {
     let ssh_pk = PublicKey::from_openssh(&content)?;
     let rsa_data = ssh_pk.key_data().rsa().ok_or("Not an RSA public key")?;
 
@@ -105,7 +107,7 @@ pub fn encrypt_bytes(pub_key: &RsaPublicKey, data: &[u8]) -> Vec<u8> {
 pub fn decrypt_bytes(
     priv_key: &RsaPrivateKey,
     encrypted_data: &[u8],
-) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+) -> Result<Vec<u8>, CryptoError> {
     let decrypted = priv_key.decrypt(Pkcs1v15Encrypt, encrypted_data)?;
     Ok(decrypted)
 }

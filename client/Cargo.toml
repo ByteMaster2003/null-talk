@@ -4,13 +4,18 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+dashmap.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 futures.workspace = true
 clap.workspace = true
+rustls.workspace = true
+tokio-rustls.workspace = true
 
 lib = { path = "../lib" }
 
-rustls.workspace = true
-tokio-rustls.workspace = true
 webpki-roots = "1.0.5"
+ratatui = "0.29.0"
+color-eyre = "0.6.5"
+chrono = "0.4.43"
+tui-textarea = "0.7.0"

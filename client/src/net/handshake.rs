@@ -2,7 +2,7 @@ use crate::utils::types::{AsyncStream, ConnectionConfig};
 use futures::{SinkExt, StreamExt};
 use lib::{
     crypto,
-    protocol::{self, LoginPayload, OpCode, Packet, PacketCodec},
+    protocol::{self, HandshakePayload, OpCode, Packet, PacketCodec},
 };
 use tokio_util::codec::Framed;
 
@@ -18,7 +18,7 @@ pub async fn perform_handshake(
     config: &ConnectionConfig,
 ) -> Option<Vec<u8>> {
     log(format!("[Handshake]: Sending Login Packet"));
-    let payload = LoginPayload {
+    let payload = HandshakePayload {
         username: config.username.clone(),
         public_key: config.public_key_str.clone(),
     };

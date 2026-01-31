@@ -1,4 +1,6 @@
 pub mod client;
+pub mod cmd;
+pub mod dm;
 pub mod handshake;
 pub mod tcp;
 pub mod tls;
