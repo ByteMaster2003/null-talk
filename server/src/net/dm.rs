@@ -9,7 +9,7 @@ use crate::data::{self, Client};
 
 pub async fn handshake(pkt: Packet, user_id: String) {
     let current_time = get_timestamps();
-    let drift_allowance = 10; // 10 seconds
+    let drift_allowance = 10_000; // 10 seconds, 10000 milliseconds
 
     let client = {
         match data::CLIENTS.get(&user_id) {
@@ -157,10 +157,11 @@ pub async fn direct_msg(pkt: Packet, user_id: String) {
         Ok(dec) => dec,
         _ => return,
     };
-    let data = match parse::<DMessage>(&dec_payload) {
+    let mut data = match parse::<DMessage>(&dec_payload) {
         Ok(msg) => msg,
         _ => return,
     };
+    let mut header = pkt.header;
 
     if let Some(recv_client) = data::CLIENTS.get(&data.user_id.clone()) {
         let bytes = protocol::to_bytes::<DMessage>(&data);
@@ -168,29 +169,25 @@ pub async fn direct_msg(pkt: Packet, user_id: String) {
             Ok(p) => p,
             _ => return,
         };
-        let pkt = Packet {
-            header: pkt.header,
-            payload,
-        };
-        let _ = recv_client.tx.send(pkt).await;
+
+        header.payload_len = payload.len() as u32;
+        let new_pkt = Packet { header, payload };
+
+        let _ = recv_client.tx.send(new_pkt).await;
     } else {
-        let msg = DMessage {
-            content: Vec::new(),
-            id: data.id,
-            user_id: user_id.clone(),
-            error: Some(format!("Client is not connected!")),
-            timestamps: data.timestamps,
-        };
-        let bytes = protocol::to_bytes::<DMessage>(&msg);
+        data.error = Some(format!("Client is not connected!"));
+        data.content = Vec::new();
+        data.user_id = "".to_string();
+        let bytes = protocol::to_bytes::<DMessage>(&data);
         let payload = match crypto::encrypt_aes(&client.session_key, &bytes) {
             Ok(p) => p,
             _ => return,
         };
-        let pkt = Packet {
-            header: pkt.header,
-            payload,
-        };
-        let _ = client.tx.send(pkt).await;
+
+        header.payload_len = payload.len() as u32;
+        let new_pkt = Packet { header, payload };
+
+        let _ = client.tx.send(new_pkt).await;
     }
 }
 

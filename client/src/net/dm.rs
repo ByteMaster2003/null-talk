@@ -157,11 +157,12 @@ async fn request_ack(data: DmHandshakePayload) {
         error: None,
         timestamps: get_timestamps(),
     };
+
     let bytes = protocol::to_bytes::<DmHandshakePayload>(&payload);
     let enc_payload = match crypto::encrypt_aes(&client_session_key, &bytes) {
         Ok(p) => p,
         Err(e) => {
-            let _ = LogMessage::log(LogLevel::INFO, e.to_string(), 0).await;
+            let _ = LogMessage::log(LogLevel::ERROR, e.to_string(), 0).await;
             return;
         }
     };
@@ -199,14 +200,17 @@ async fn session_ack(data: DmHandshakePayload) {
     // Add the new session to the list
     let dm_id = data.dm_id.clone();
     {
-        data::SESSIONS.entry(dm_id.clone()).or_insert(Session {
-            status: HandshakeStatus::Success,
-            name: data.username.clone(),
-            user_id: Some(user_id.clone()),
-            public_key: data.public_key,
-            enc_key: dec_dm_key,
-            id: dm_id.clone(),
-        });
+        data::SESSIONS.insert(
+            dm_id.clone(),
+            Session {
+                status: HandshakeStatus::Success,
+                name: data.username.clone(),
+                user_id: Some(user_id.clone()),
+                public_key: data.public_key,
+                enc_key: dec_dm_key,
+                id: dm_id.clone(),
+            },
+        );
     }
     {
         data::MESSAGES.entry(dm_id.clone()).or_insert(Vec::new());
@@ -260,15 +264,21 @@ pub async fn direct_msg(pkt: Packet) {
     let enc_bytes = pkt.payload;
     let dec_bytes = match crypto::decrypt_aes(&client_session_key, &enc_bytes) {
         Ok(bytes) => bytes,
-        _ => return,
+        Err(e) => {
+            let _ = LogMessage::log(LogLevel::ERROR, format!("DMessage1: {}", e), 5).await;
+            return;
+        }
     };
     let message = match protocol::parse::<DMessage>(&dec_bytes) {
         Ok(data) => data,
-        _ => return,
+        Err(e) => {
+            let _ = LogMessage::log(LogLevel::ERROR, format!("DMessage2: {}", e), 5).await;
+            return;
+        }
     };
 
     if let Some(error) = message.error {
-        let _ = LogMessage::log(LogLevel::ERROR, error, 5).await;
+        let _ = LogMessage::log(LogLevel::ERROR, format!("DMessage: {}", error), 5).await;
         return;
     };
 
@@ -334,7 +344,7 @@ pub async fn send_dm(msg: String, session: String) {
     let message = DMessage {
         id: session.clone(),
         user_id: dm_session.user_id.clone().unwrap(),
-        content: enc_bytes,
+        content: enc_bytes.clone(),
         timestamps,
         error: None,
     };

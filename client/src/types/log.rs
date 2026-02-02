@@ -1,5 +1,7 @@
+use chrono::Local;
+
 use crate::data;
-use std::time::Duration;
+use std::{fs, io::Write, time::Duration};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogLevel {
@@ -29,5 +31,16 @@ impl LogMessage {
                 hide_after: Duration::from_secs(hide_after),
             })
             .await;
+    }
+
+    pub fn log_to_file(message: String) -> std::io::Result<()> {
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("app.log")?;
+
+        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S");
+        writeln!(file, "[{}] {}", timestamp, message)?;
+        Ok(())
     }
 }

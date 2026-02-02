@@ -24,14 +24,20 @@ impl Decoder for PacketCodec {
             return Ok(None);
         }
         let header_bytes = &src[1..header_size];
-        let header: PacketHeader = parse(&header_bytes)?;
 
-        if header.magic_byte != 0x44 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid Packet"));
-        }
+        let header: PacketHeader = match parse(&header_bytes) {
+            Ok(hd) => hd,
+            Err(_) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("[Decoder]: Header Parsing Failed!"),
+                ));
+            }
+        };
 
         let payload_len = header.payload_len as usize;
         let packet_size = HEADER_BYTE + header_len + payload_len;
+
         if src.len() < packet_size {
             src.reserve(packet_size - src.len());
             return Ok(None);
@@ -39,6 +45,13 @@ impl Decoder for PacketCodec {
 
         src.advance(header_size);
         let payload_bytes = src.split_to(payload_len);
+
+        if header.magic_byte != 0x44 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("[Decoder]: Invalid Packet!"),
+            ));
+        }
 
         Ok(Some(Packet {
             header,

@@ -70,14 +70,16 @@ async fn reader_task(mut stream: SplitStream<Framed<Box<dyn AsyncStream>, Packet
             result = stream.next() => {
                 match result {
                     Some(Ok(pkt)) => {
-                        match pkt.header.op_code {
-                            OpCode::DmHandshake => dm::handshake(pkt).await,
-                            OpCode::DirectMsg => dm::direct_msg(pkt).await,
-                            _ => (),
-                        }
+                        tokio::spawn(async move {
+                            match pkt.header.op_code {
+                                OpCode::DmHandshake => dm::handshake(pkt).await,
+                                OpCode::DirectMsg => dm::direct_msg(pkt).await,
+                                _ => (),
+                            }
+                        });
                     }
                     Some(Err(e)) => {
-                        let _ = LogMessage::log(LogLevel::ERROR, e.to_string(), 0);
+                        let _ = LogMessage::log(LogLevel::ERROR,format!("Stream: {}", e), 0).await;
                     }
                     None => break, // Stream closed
                 }
