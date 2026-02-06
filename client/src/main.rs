@@ -1,5 +1,5 @@
 use clap::Parser;
-use client::{
+use null_talk::{
     config, data,
     net::{handle_client, tcp::open_tcp_stream},
     types::ChannelRegistry,

@@ -1,5 +1,5 @@
 [package]
-name = "null-talk-client"
+name = "null-talk"
 version = "2.0.0"
 edition = "2024"
 authors = ["ByteMaster2003 <viveksahani39266@gmail.com>"]

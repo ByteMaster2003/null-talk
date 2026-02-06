@@ -1,0 +1,85 @@
+name: Release
+
+
+on:
+  push:
+    tags:
+      - "v*.*.*"   # Only run on version tags like v1.0.0
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build binaries
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        run: cargo build --release --workspace
+
+      - name: Rename binaries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          if [ "${{ runner.arch }}" = "X64" ]; then
+            mv target/release/null-talk null-talk-linux-x86_64
+            mv target/release/null-talk-server null-talk-server-linux-x86_64
+          elif [ "${{ runner.arch }}" = "ARM64" ]; then
+            mv target/release/null-talk null-talk-linux-arm64
+            mv target/release/null-talk-server null-talk-server-linux-arm64
+          fi
+
+      - name: Rename binaries (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          move target\release\null-talk.exe null-talk-windows.exe
+          move target\release\null-talk-server.exe null-talk-server-windows.exe
+
+      - name: Rename binaries (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mv target/release/null-talk null-talk-macos
+          mv target/release/null-talk-server null-talk-server-macos
+
+      - name: Upload binaries as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: null-talk-${{ matrix.os }}
+          path: |
+            null-talk-*
+            null-talk-server-*
+
+  release:
+    name: Upload to GitHub Releases
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Flatten artifacts
+        run: mv artifacts/*/* .
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            null-talk-*
+            null-talk-server-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

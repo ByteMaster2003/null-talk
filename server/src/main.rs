@@ -1,5 +1,5 @@
 use clap::Parser;
-use server::{
+use null_talk_server::{
     config,
     data::{self},
     net::{handle_client, tls::create_tls_acceptor},
